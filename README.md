@@ -187,6 +187,8 @@ Add this line:
 
 ## Bluetooth Speaker Setup
 
+### Initial Setup
+
 To use a Bluetooth speaker with HomePi:
 
 ```bash
@@ -200,6 +202,18 @@ This script handles everything automatically:
 - Configures audio routing
 - Tests the audio
 - Creates quick reconnect script
+
+### Auto-Connect on Boot
+
+To make Bluetooth auto-connect after reboot:
+
+```bash
+# Setup auto-connect service
+bash setup-bluetooth-autostart.sh
+
+# Test it
+sudo reboot
+```
 
 See also: [BLUETOOTH_SETUP.md](BLUETOOTH_SETUP.md) | [PIPEWIRE_BLUETOOTH.md](PIPEWIRE_BLUETOOTH.md)
 

@@ -1,0 +1,14 @@
+[Unit]
+Description=Bluetooth Speaker Auto-Connect
+After=bluetooth.target sound.target pulseaudio.service
+Wants=bluetooth.target
+
+[Service]
+Type=oneshot
+User=mujadded
+ExecStart=/home/mujadded/homepi/bluetooth-autoconnect.sh
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target
+
