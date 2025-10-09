@@ -15,17 +15,23 @@ if [ ! -d "venv" ]; then
     exit 1
 fi
 
-# Make sure PulseAudio is running (needed for Bluetooth audio)
-if command -v pulseaudio &> /dev/null; then
+# Make sure audio system is running (PulseAudio or PipeWire)
+if systemctl --user is-active --quiet pipewire-pulse; then
+    # PipeWire with PulseAudio compatibility is running
+    echo "Using PipeWire audio system"
+    export SDL_AUDIODRIVER=pulseaudio
+elif command -v pulseaudio &> /dev/null; then
+    # Start PulseAudio if needed
     if ! pulseaudio --check 2>/dev/null; then
         echo "Starting PulseAudio..."
         pulseaudio --start
         sleep 2
     fi
+    export SDL_AUDIODRIVER=pulseaudio
+else
+    # Fallback
+    export SDL_AUDIODRIVER=pulseaudio
 fi
-
-# Set SDL audio driver to use PulseAudio (for Bluetooth compatibility)
-export SDL_AUDIODRIVER=pulseaudio
 
 # Activate virtual environment and start the app
 source venv/bin/activate

@@ -1,6 +1,16 @@
 # 🔊 Bluetooth Speaker Setup for Raspberry Pi
 
-## Quick Setup Guide
+## Important: PipeWire vs PulseAudio
+
+Modern Raspberry Pi OS uses **PipeWire** instead of PulseAudio. If you have PipeWire:
+
+👉 **Use this script instead:** `bash fix-bluetooth-pipewire.sh`
+
+Or see: [PIPEWIRE_BLUETOOTH.md](PIPEWIRE_BLUETOOTH.md) for PipeWire-specific instructions.
+
+---
+
+## Quick Setup Guide (PulseAudio)
 
 ### Step 1: Put Your Speaker in Pairing Mode
 - Turn on your Bluetooth speaker
