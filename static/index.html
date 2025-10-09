@@ -761,10 +761,22 @@
             <div class="card full-width-card">
                 <h2>⏰ Schedules</h2>
                 
-                <button onclick="openScheduleModal()">➕ Add Schedule</button>
+                <div style="margin-bottom: 20px; display: flex; gap: 10px; align-items: center;">
+                    <button onclick="openScheduleModal()">➕ Add Schedule</button>
+                    <button onclick="toggleView()" class="secondary" id="toggleViewBtn">📅 Calendar View</button>
+                    <div style="margin-left: auto; font-weight: 600; color: var(--primary);" id="currentTime"></div>
+                </div>
 
-                <div class="schedule-list" id="scheduleList">
-                    <div class="loading">Loading schedules...</div>
+                <!-- List View -->
+                <div id="listView" style="display: block;">
+                    <div class="schedule-list" id="scheduleList">
+                        <div class="loading">Loading schedules...</div>
+                    </div>
+                </div>
+
+                <!-- Calendar View -->
+                <div id="calendarView" style="display: none;">
+                    <div id="calendarSchedule"></div>
                 </div>
             </div>
         </div>
@@ -860,12 +872,14 @@
         let songs = [];
         let schedules = [];
         let currentEditingSchedule = null;
+        let currentView = 'list'; // 'list' or 'calendar'
 
         // Initialize
         document.addEventListener('DOMContentLoaded', function() {
             loadSongs();
             loadSchedules();
             loadStatus();
+            updateCurrentTime();
             
             // Volume slider
             document.getElementById('volumeSlider').addEventListener('input', function(e) {
@@ -876,7 +890,174 @@
 
             // Refresh status every 2 seconds
             setInterval(loadStatus, 2000);
+            
+            // Update current time every second
+            setInterval(updateCurrentTime, 1000);
         });
+
+        // Update current time display
+        function updateCurrentTime() {
+            const now = new Date();
+            const timeStr = now.toLocaleTimeString('en-US', { 
+                hour: '2-digit', 
+                minute: '2-digit', 
+                second: '2-digit',
+                hour12: false 
+            });
+            const dateStr = now.toLocaleDateString('en-US', { 
+                weekday: 'short', 
+                month: 'short', 
+                day: 'numeric' 
+            });
+            document.getElementById('currentTime').textContent = `${dateStr} • ${timeStr}`;
+        }
+
+        // Toggle between list and calendar view
+        function toggleView() {
+            const listView = document.getElementById('listView');
+            const calendarView = document.getElementById('calendarView');
+            const btn = document.getElementById('toggleViewBtn');
+            
+            if (currentView === 'list') {
+                currentView = 'calendar';
+                listView.style.display = 'none';
+                calendarView.style.display = 'block';
+                btn.textContent = '📋 List View';
+                renderCalendarView();
+            } else {
+                currentView = 'list';
+                listView.style.display = 'block';
+                calendarView.style.display = 'none';
+                btn.textContent = '📅 Calendar View';
+            }
+        }
+
+        // Render calendar view
+        function renderCalendarView() {
+            const calendarSchedule = document.getElementById('calendarSchedule');
+            
+            if (schedules.length === 0) {
+                calendarSchedule.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-state-icon">📅</div>
+                        <p>No schedules to display</p>
+                    </div>
+                `;
+                return;
+            }
+
+            // Group schedules by hour
+            const hourGroups = {};
+            for (let h = 0; h < 24; h++) {
+                hourGroups[h] = [];
+            }
+
+            schedules.forEach(schedule => {
+                if (schedule.enabled) {
+                    hourGroups[schedule.hour].push(schedule);
+                }
+            });
+
+            // Get current time
+            const now = new Date();
+            const currentHour = now.getHours();
+            const currentMinute = now.getMinutes();
+
+            // Render timeline
+            let html = '<div style="display: grid; gap: 8px;">';
+
+            for (let hour = 0; hour < 24; hour++) {
+                const scheduleItems = hourGroups[hour];
+                const isCurrentHour = hour === currentHour;
+                const isPastHour = hour < currentHour;
+                
+                // Sort by minute
+                scheduleItems.sort((a, b) => a.minute - b.minute);
+
+                const hourStr = hour.toString().padStart(2, '0');
+                const hourLabel = `${hourStr}:00`;
+
+                if (scheduleItems.length > 0 || isCurrentHour) {
+                    html += `
+                        <div style="
+                            padding: 16px; 
+                            background: ${isCurrentHour ? 'linear-gradient(135deg, var(--primary-light), var(--secondary))' : isPastHour ? 'var(--gray-100)' : 'white'};
+                            border-left: 4px solid ${isCurrentHour ? 'var(--success)' : isPastHour ? 'var(--gray-300)' : 'var(--primary)'};
+                            border-radius: 12px;
+                            ${isPastHour && !isCurrentHour ? 'opacity: 0.6;' : ''}
+                            box-shadow: var(--shadow-sm);
+                        ">
+                            <div style="display: flex; align-items: center; gap: 12px; margin-bottom: ${scheduleItems.length > 0 ? '12px' : '0'};">
+                                <div style="
+                                    font-size: 1.5em; 
+                                    font-weight: 800; 
+                                    color: ${isCurrentHour ? 'white' : 'var(--primary)'};
+                                    min-width: 80px;
+                                ">
+                                    ${hourLabel}
+                                </div>
+                                ${isCurrentHour ? `
+                                    <div style="
+                                        background: rgba(255,255,255,0.9); 
+                                        padding: 6px 14px; 
+                                        border-radius: 20px;
+                                        color: var(--success);
+                                        font-weight: 700;
+                                        font-size: 0.9em;
+                                        animation: pulse 2s infinite;
+                                    ">
+                                        ⏰ NOW: ${hourStr}:${currentMinute.toString().padStart(2, '0')}
+                                    </div>
+                                ` : ''}
+                            </div>
+                    `;
+
+                    if (scheduleItems.length > 0) {
+                        html += '<div style="display: grid; gap: 8px; margin-left: 92px;">';
+                        scheduleItems.forEach(schedule => {
+                            const scheduleTime = schedule.hour * 60 + schedule.minute;
+                            const currentTime = currentHour * 60 + currentMinute;
+                            const isPast = scheduleTime < currentTime;
+                            const isComing = scheduleTime > currentTime && scheduleTime < currentTime + 60;
+
+                            html += `
+                                <div style="
+                                    padding: 12px; 
+                                    background: ${isPast ? 'var(--gray-100)' : isComing ? 'linear-gradient(135deg, #fef3c7, #fde68a)' : 'white'};
+                                    border-radius: 8px;
+                                    border: 2px solid ${isComing ? 'var(--warning)' : 'var(--gray-200)'};
+                                    ${isPast ? 'opacity: 0.5;' : ''}
+                                ">
+                                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                                        <div>
+                                            <div style="font-weight: 700; color: var(--dark); margin-bottom: 4px;">
+                                                ${formatTime(schedule.hour, schedule.minute)} - ${schedule.name}
+                                                ${isComing ? ' <span style="color: var(--warning);">🔔 Coming up!</span>' : ''}
+                                                ${isPast ? ' <span style="color: var(--gray-600);">✓ Played</span>' : ''}
+                                            </div>
+                                            <div style="font-size: 0.9em; color: var(--gray-600);">
+                                                🎵 ${schedule.song}
+                                                ${schedule.repeat ? ' • 🔁 Repeat' : ''}
+                                            </div>
+                                        </div>
+                                        <div style="display: flex; gap: 8px;">
+                                            <button class="btn-small" onclick="editSchedule(${schedule.id})">✏️</button>
+                                            <button class="btn-small danger" onclick="deleteSchedule(${schedule.id})">🗑️</button>
+                                        </div>
+                                    </div>
+                                </div>
+                            `;
+                        });
+                        html += '</div>';
+                    }
+
+                    html += '</div>';
+                }
+            }
+
+            html += '</div>';
+            calendarSchedule.innerHTML = html;
+        }
 
         // API calls
         async function apiCall(endpoint, options = {}) {
@@ -899,6 +1080,9 @@
         async function loadSchedules() {
             schedules = await apiCall('/schedules');
             renderSchedules();
+            if (currentView === 'calendar') {
+                renderCalendarView();
+            }
         }
 
         async function loadStatus() {
@@ -1086,25 +1270,53 @@
                 return;
             }
 
-            showAlert('youtubeAlert', 'Downloading... This may take a minute.', 'success');
+            const downloadBtn = event.target;
+            const originalText = downloadBtn.textContent;
+            downloadBtn.disabled = true;
+            downloadBtn.textContent = '⏳ Downloading...';
+            
+            showAlert('youtubeAlert', 'Downloading... This may take a minute. Please wait.', 'success');
 
             try {
-                const result = await apiCall('/songs/youtube', {
+                // Set a longer timeout for YouTube downloads
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 120000); // 2 minutes timeout
+
+                const response = await fetch('/api/songs/youtube', {
                     method: 'POST',
-                    body: JSON.stringify({ url })
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ url }),
+                    signal: controller.signal
                 });
+
+                clearTimeout(timeoutId);
+                const result = await response.json();
+                
+                downloadBtn.disabled = false;
+                downloadBtn.textContent = originalText;
                 
                 if (result.error) {
                     showAlert('youtubeAlert', result.error, 'error');
                 } else {
                     showAlert('youtubeAlert', 'Downloaded successfully!', 'success');
+                    // Force immediate reload of songs
+                    await loadSongs();
                     setTimeout(() => {
                         closeModal('youtubeModal');
-                        loadSongs();
+                        document.getElementById('youtubeUrl').value = '';
                     }, 1500);
                 }
             } catch (error) {
-                showAlert('youtubeAlert', 'Download failed: ' + error.message, 'error');
+                downloadBtn.disabled = false;
+                downloadBtn.textContent = originalText;
+                
+                if (error.name === 'AbortError') {
+                    showAlert('youtubeAlert', 'Download timed out. Please try again.', 'error');
+                } else {
+                    showAlert('youtubeAlert', 'Download failed: ' + error.message, 'error');
+                }
             }
         }
 
