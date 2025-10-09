@@ -164,8 +164,8 @@ else
     fi
 fi
 
-# Scan for new speaker
-if [ "$CHOICE" = "2" ] || [ "$CHOICE" = "" ]; then
+# Scan for new speaker (only if not using connected/saved speaker)
+if [ "$CHOICE" = "2" ]; then
     echo -e "${YELLOW}════════════════════════════════════════════════════════════${NC}"
     echo -e "${YELLOW}  IMPORTANT: Put your Bluetooth speaker in PAIRING MODE now!${NC}"
     echo -e "${YELLOW}  (Usually: Press and hold Bluetooth button until it blinks)${NC}"
