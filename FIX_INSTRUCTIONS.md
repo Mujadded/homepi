@@ -1,7 +1,7 @@
 # 🔧 Quick Fix for Your Current Installation
 
 ## The Problem
-Modern Raspberry Pi OS (Debian Trixie) requires Python packages to be installed in a virtual environment, not system-wide.
+Modern Raspberry Pi OS (Debian Trixie) requires Python packages to be installed in a virtual environment, not system-wide. Also, pygame needs to use the system package since building from source requires SDL2 dev libraries.
 
 ## The Solution
 Run these commands on your Raspberry Pi:
@@ -9,18 +9,24 @@ Run these commands on your Raspberry Pi:
 ```bash
 cd ~/homepi
 
-# Step 1: Create virtual environment
-python3 -m venv venv
+# Step 1: Remove old venv if it exists
+rm -rf venv
 
-# Step 2: Install dependencies in virtual environment
+# Step 2: Create virtual environment with access to system packages (for pygame)
+python3 -m venv --system-site-packages venv
+
+# Step 3: Install dependencies in virtual environment
 ./venv/bin/pip install --upgrade pip
 ./venv/bin/pip install -r requirements.txt
 
-# Step 3: Start the application
+# Step 4: Start the application
 bash start.sh
 ```
 
 That's it! 🎉
+
+## Why --system-site-packages?
+This flag allows the virtual environment to access the system's `python3-pygame` package, which is already installed and properly compiled for your Raspberry Pi.
 
 ---
 

@@ -26,8 +26,8 @@ echo "Step 2: Installing system dependencies..."
 sudo apt-get install -y python3-pip python3-dev python3-pygame ffmpeg
 
 echo ""
-echo "Step 3: Creating Python virtual environment..."
-python3 -m venv venv
+echo "Step 3: Creating Python virtual environment (with system packages)..."
+python3 -m venv --system-site-packages venv
 
 echo ""
 echo "Step 4: Installing Python dependencies in virtual environment..."
