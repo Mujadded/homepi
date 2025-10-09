@@ -185,10 +185,22 @@ Add this line:
 @reboot sleep 30 && cd /home/pi/homepi && /usr/bin/python3 app.py &
 ```
 
+## Bluetooth Speaker Setup
+
+To use a Bluetooth speaker with HomePi:
+
+```bash
+# Run the connection helper script
+bash connect-bluetooth-speaker.sh
+```
+
+Or see the complete guide: [BLUETOOTH_SETUP.md](BLUETOOTH_SETUP.md)
+
 ## Troubleshooting
 
 ### No audio output
 
+**For 3.5mm Jack / HDMI:**
 1. Check audio configuration:
 ```bash
 sudo raspi-config
@@ -199,6 +211,19 @@ sudo raspi-config
 ```bash
 speaker-test -t wav -c 2
 ```
+
+**For Bluetooth Speaker:**
+1. Check if connected:
+```bash
+bluetoothctl info XX:XX:XX:XX:XX:XX
+```
+
+2. Set as default audio:
+```bash
+pactl set-default-sink bluez_sink.XX_XX_XX_XX_XX_XX.a2dp_sink
+```
+
+3. Restart HomePi after connecting speaker
 
 ### Cannot access web interface from other devices
 
@@ -217,16 +242,27 @@ sudo ufw status
 hostname -I
 ```
 
-### YouTube download fails
+### YouTube download fails (403 Forbidden)
 
-1. Update yt-dlp:
+YouTube frequently changes their API. Update yt-dlp:
+
 ```bash
-pip3 install --upgrade yt-dlp
+# Easy way - use the update script
+bash update-ytdlp.sh
+
+# Or manually
+./venv/bin/pip install --upgrade yt-dlp
+
+# Then restart the app
 ```
 
-2. Ensure ffmpeg is installed:
+If still failing:
 ```bash
+# Check ffmpeg is installed
 ffmpeg -version
+
+# Make sure you're using a valid YouTube URL
+# Try a different video
 ```
 
 ### Scheduled songs not playing

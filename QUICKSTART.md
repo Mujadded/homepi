@@ -136,6 +136,8 @@ sudo systemctl stop homepi.service
 ## Common Issues & Fixes
 
 ### 🔇 No Audio?
+
+**For 3.5mm Jack / HDMI:**
 ```bash
 # Configure audio output
 sudo raspi-config
@@ -144,6 +146,20 @@ sudo raspi-config
 # Test audio
 speaker-test -t wav -c 2
 ```
+
+**For Bluetooth Speaker:**
+```bash
+# Use the connection helper
+bash connect-bluetooth-speaker.sh
+
+# Or manually connect
+bluetoothctl connect XX:XX:XX:XX:XX:XX
+
+# Set as default
+pactl set-default-sink bluez_sink.XX_XX_XX_XX_XX_XX.a2dp_sink
+```
+
+See [BLUETOOTH_SETUP.md](BLUETOOTH_SETUP.md) for detailed Bluetooth setup.
 
 ### 🌐 Can't Access from Other Devices?
 ```bash
