@@ -149,32 +149,16 @@ speaker-test -t wav -c 2
 
 **For Bluetooth Speaker:**
 ```bash
-# 1. Connect the speaker
-bash connect-bluetooth-speaker.sh
+# All-in-one setup (easiest!)
+bash setup-bluetooth.sh
 
-# 2. Fix audio routing (if connected but no sound)
-bash fix-bluetooth-audio.sh
-
-# 3. Restart HomePi
+# Then start HomePi
 bash start.sh
 ```
 
-**Manual Bluetooth audio fix:**
-```bash
-# Install PulseAudio
-sudo apt-get install -y pulseaudio pulseaudio-module-bluetooth
+The script handles everything: scanning, pairing, connecting, and audio routing.
 
-# Restart PulseAudio
-pulseaudio --kill && pulseaudio --start
-
-# Set Bluetooth as default (use your speaker's MAC address)
-pactl set-default-sink bluez_sink.XX_XX_XX_XX_XX_XX.a2dp_sink
-
-# Test
-speaker-test -t wav -c 2 -l 1
-```
-
-See [BLUETOOTH_SETUP.md](BLUETOOTH_SETUP.md) for detailed Bluetooth setup.
+See [BLUETOOTH_SETUP.md](BLUETOOTH_SETUP.md) or [PIPEWIRE_BLUETOOTH.md](PIPEWIRE_BLUETOOTH.md) for details.
 
 ### 🌐 Can't Access from Other Devices?
 ```bash

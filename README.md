@@ -190,11 +190,18 @@ Add this line:
 To use a Bluetooth speaker with HomePi:
 
 ```bash
-# Run the connection helper script
-bash connect-bluetooth-speaker.sh
+# Run the all-in-one setup script
+bash setup-bluetooth.sh
 ```
 
-Or see the complete guide: [BLUETOOTH_SETUP.md](BLUETOOTH_SETUP.md)
+This script handles everything automatically:
+- Detects PulseAudio or PipeWire
+- Scans and connects to your speaker
+- Configures audio routing
+- Tests the audio
+- Creates quick reconnect script
+
+See also: [BLUETOOTH_SETUP.md](BLUETOOTH_SETUP.md) | [PIPEWIRE_BLUETOOTH.md](PIPEWIRE_BLUETOOTH.md)
 
 ## Troubleshooting
 
