@@ -1,0 +1,1225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HomePi - Music Scheduler</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #6366f1;
+            --primary-dark: #4f46e5;
+            --primary-light: #818cf8;
+            --secondary: #ec4899;
+            --success: #10b981;
+            --danger: #ef4444;
+            --warning: #f59e0b;
+            --dark: #1f2937;
+            --gray-50: #f9fafb;
+            --gray-100: #f3f4f6;
+            --gray-200: #e5e7eb;
+            --gray-300: #d1d5db;
+            --gray-600: #4b5563;
+            --gray-700: #374151;
+            --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+            --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            --shadow-md: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+            --shadow-lg: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+            --shadow-xl: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%);
+            background-attachment: fixed;
+            min-height: 100vh;
+            padding: 20px;
+            color: var(--dark);
+            position: relative;
+            overflow-x: hidden;
+        }
+
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.05'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            position: relative;
+            z-index: 1;
+        }
+
+        header {
+            text-align: center;
+            color: white;
+            margin-bottom: 40px;
+            animation: fadeInDown 0.8s ease-out;
+        }
+
+        h1 {
+            font-size: 3.5em;
+            font-weight: 800;
+            margin-bottom: 15px;
+            text-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+            letter-spacing: -0.02em;
+        }
+
+        .subtitle {
+            font-size: 1.2em;
+            opacity: 0.95;
+            font-weight: 400;
+            text-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+
+        .main-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(500px, 1fr));
+            gap: 24px;
+            margin-bottom: 24px;
+        }
+
+        @media (max-width: 1024px) {
+            .main-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            h1 {
+                font-size: 2.5em;
+            }
+        }
+
+        .card {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(20px);
+            border-radius: 24px;
+            padding: 32px;
+            box-shadow: var(--shadow-xl);
+            border: 1px solid rgba(255, 255, 255, 0.8);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            animation: fadeInUp 0.6s ease-out;
+            animation-fill-mode: both;
+        }
+
+        .card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 30px 60px -15px rgba(0, 0, 0, 0.3);
+        }
+
+        .card:nth-child(1) { animation-delay: 0.1s; }
+        .card:nth-child(2) { animation-delay: 0.2s; }
+        .card:nth-child(3) { animation-delay: 0.3s; }
+
+        .card h2 {
+            margin-bottom: 24px;
+            background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            font-size: 1.75em;
+            font-weight: 700;
+            border-bottom: 2px solid var(--gray-100);
+            padding-bottom: 16px;
+            letter-spacing: -0.01em;
+        }
+
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes fadeInDown {
+            from {
+                opacity: 0;
+                transform: translateY(-30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes pulse {
+            0%, 100% {
+                opacity: 1;
+                transform: scale(1);
+            }
+            50% {
+                opacity: 0.7;
+                transform: scale(1.1);
+            }
+        }
+
+        .playback-controls {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+            margin-bottom: 24px;
+        }
+
+        button {
+            background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+            color: white;
+            border: none;
+            padding: 14px 28px;
+            border-radius: 12px;
+            cursor: pointer;
+            font-size: 1em;
+            font-weight: 600;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: var(--shadow-md);
+            position: relative;
+            overflow: hidden;
+        }
+
+        button::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
+            transition: left 0.5s;
+        }
+
+        button:hover::before {
+            left: 100%;
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 12px 24px -8px var(--primary);
+        }
+
+        button:active {
+            transform: translateY(0);
+            box-shadow: var(--shadow);
+        }
+
+        button.danger {
+            background: linear-gradient(135deg, var(--danger) 0%, #dc2626 100%);
+        }
+
+        button.danger:hover {
+            box-shadow: 0 12px 24px -8px var(--danger);
+        }
+
+        button.secondary {
+            background: linear-gradient(135deg, var(--gray-600) 0%, var(--gray-700) 100%);
+        }
+
+        button.secondary:hover {
+            box-shadow: 0 12px 24px -8px var(--gray-600);
+        }
+
+        .volume-control {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            margin-bottom: 24px;
+            padding: 20px;
+            background: var(--gray-50);
+            border-radius: 16px;
+            border: 2px solid var(--gray-200);
+        }
+
+        .volume-control label {
+            font-weight: 600;
+            min-width: 80px;
+            font-size: 1.05em;
+        }
+
+        input[type="range"] {
+            flex: 1;
+            height: 10px;
+            border-radius: 10px;
+            background: linear-gradient(to right, var(--primary-light), var(--primary));
+            outline: none;
+            -webkit-appearance: none;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        input[type="range"]:hover {
+            transform: scaleY(1.1);
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            background: white;
+            cursor: pointer;
+            box-shadow: 0 4px 12px rgba(99, 102, 241, 0.4);
+            border: 3px solid var(--primary);
+            transition: all 0.3s;
+        }
+
+        input[type="range"]::-webkit-slider-thumb:hover {
+            transform: scale(1.2);
+            box-shadow: 0 6px 20px rgba(99, 102, 241, 0.6);
+        }
+
+        input[type="range"]::-moz-range-thumb {
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            background: white;
+            cursor: pointer;
+            box-shadow: 0 4px 12px rgba(99, 102, 241, 0.4);
+            border: 3px solid var(--primary);
+            transition: all 0.3s;
+        }
+
+        input[type="range"]::-moz-range-thumb:hover {
+            transform: scale(1.2);
+            box-shadow: 0 6px 20px rgba(99, 102, 241, 0.6);
+        }
+
+        .volume-value {
+            font-weight: 700;
+            min-width: 50px;
+            font-size: 1.2em;
+            color: var(--primary);
+            text-align: right;
+        }
+
+        .status-indicator {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            padding: 12px 20px;
+            background: linear-gradient(135deg, var(--gray-50) 0%, white 100%);
+            border-radius: 30px;
+            margin-bottom: 24px;
+            box-shadow: var(--shadow-sm);
+            border: 2px solid var(--gray-200);
+        }
+
+        .status-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: var(--success);
+            animation: pulse 2s infinite;
+            box-shadow: 0 0 10px var(--success);
+        }
+
+        .song-list, .schedule-list {
+            max-height: 450px;
+            overflow-y: auto;
+            margin-top: 24px;
+            padding-right: 8px;
+        }
+
+        .song-list::-webkit-scrollbar,
+        .schedule-list::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .song-list::-webkit-scrollbar-track,
+        .schedule-list::-webkit-scrollbar-track {
+            background: var(--gray-100);
+            border-radius: 10px;
+        }
+
+        .song-list::-webkit-scrollbar-thumb,
+        .schedule-list::-webkit-scrollbar-thumb {
+            background: var(--primary-light);
+            border-radius: 10px;
+        }
+
+        .song-list::-webkit-scrollbar-thumb:hover,
+        .schedule-list::-webkit-scrollbar-thumb:hover {
+            background: var(--primary);
+        }
+
+        .song-item, .schedule-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px;
+            background: linear-gradient(135deg, var(--gray-50) 0%, white 100%);
+            border-radius: 16px;
+            margin-bottom: 12px;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            border: 2px solid var(--gray-200);
+            box-shadow: var(--shadow-sm);
+        }
+
+        .song-item:hover, .schedule-item:hover {
+            background: white;
+            transform: translateX(8px);
+            box-shadow: var(--shadow-md);
+            border-color: var(--primary-light);
+        }
+
+        .song-info, .schedule-info {
+            flex: 1;
+        }
+
+        .song-name {
+            font-weight: 700;
+            margin-bottom: 6px;
+            color: var(--dark);
+            font-size: 1.05em;
+        }
+
+        .song-details {
+            font-size: 0.9em;
+            color: var(--gray-600);
+            font-weight: 500;
+        }
+
+        .song-actions, .schedule-actions {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .btn-small {
+            padding: 10px 18px;
+            font-size: 0.9em;
+        }
+
+        .form-group {
+            margin-bottom: 24px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 10px;
+            font-weight: 600;
+            color: var(--dark);
+            font-size: 0.95em;
+        }
+
+        input[type="text"],
+        input[type="number"],
+        input[type="file"],
+        select {
+            width: 100%;
+            padding: 14px 16px;
+            border: 2px solid var(--gray-200);
+            border-radius: 12px;
+            font-size: 1em;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            font-family: inherit;
+            background: white;
+        }
+
+        input:focus, select:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.1);
+            transform: translateY(-2px);
+        }
+
+        input[type="file"] {
+            padding: 12px;
+            cursor: pointer;
+        }
+
+        input[type="file"]::file-selector-button {
+            padding: 10px 20px;
+            background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            margin-right: 12px;
+            transition: all 0.3s;
+        }
+
+        input[type="file"]::file-selector-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(99, 102, 241, 0.4);
+        }
+
+        .time-inputs {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+        }
+
+        .checkbox-group {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .checkbox-group input[type="checkbox"] {
+            width: 20px;
+            height: 20px;
+            cursor: pointer;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(8px);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+            animation: fadeIn 0.3s ease-out;
+        }
+
+        .modal.active {
+            display: flex;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+            }
+            to {
+                opacity: 1;
+            }
+        }
+
+        @keyframes slideUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .modal-content {
+            background: white;
+            padding: 36px;
+            border-radius: 24px;
+            max-width: 550px;
+            width: 90%;
+            max-height: 85vh;
+            overflow-y: auto;
+            box-shadow: var(--shadow-xl);
+            animation: slideUp 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .modal-content::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .modal-content::-webkit-scrollbar-track {
+            background: var(--gray-100);
+            border-radius: 10px;
+        }
+
+        .modal-content::-webkit-scrollbar-thumb {
+            background: var(--primary-light);
+            border-radius: 10px;
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 28px;
+            padding-bottom: 20px;
+            border-bottom: 2px solid var(--gray-100);
+        }
+
+        .modal-header h3 {
+            background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            font-size: 1.8em;
+            font-weight: 700;
+        }
+
+        .close-btn {
+            background: var(--gray-100);
+            color: var(--gray-600);
+            font-size: 1.5em;
+            padding: 0;
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s;
+        }
+
+        .close-btn:hover {
+            background: var(--danger);
+            color: white;
+            transform: rotate(90deg);
+            box-shadow: var(--shadow-md);
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px 40px;
+            color: var(--gray-600);
+        }
+
+        .empty-state-icon {
+            font-size: 4em;
+            margin-bottom: 20px;
+            opacity: 0.5;
+            filter: grayscale(50%);
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: var(--gray-600);
+            font-size: 1.1em;
+        }
+
+        .loading::after {
+            content: '...';
+            animation: dots 1.5s steps(4, end) infinite;
+        }
+
+        @keyframes dots {
+            0%, 20% {
+                content: '.';
+            }
+            40% {
+                content: '..';
+            }
+            60%, 100% {
+                content: '...';
+            }
+        }
+
+        .alert {
+            padding: 16px 20px;
+            border-radius: 12px;
+            margin-bottom: 24px;
+            font-weight: 500;
+            box-shadow: var(--shadow-sm);
+            animation: slideUp 0.3s ease-out;
+        }
+
+        .alert-success {
+            background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%);
+            color: #065f46;
+            border: 2px solid #10b981;
+        }
+
+        .alert-error {
+            background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%);
+            color: #991b1b;
+            border: 2px solid #ef4444;
+        }
+
+        .schedule-time {
+            font-size: 1.3em;
+            font-weight: 800;
+            background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-size: 0.85em;
+            font-weight: 700;
+            margin-left: 8px;
+            box-shadow: var(--shadow-sm);
+        }
+
+        .badge-success {
+            background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%);
+            color: #065f46;
+            border: 1px solid #10b981;
+        }
+
+        .badge-warning {
+            background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+            color: #92400e;
+            border: 1px solid #f59e0b;
+        }
+
+        .full-width-card {
+            grid-column: 1 / -1;
+        }
+
+        /* Responsive design improvements */
+        @media (max-width: 768px) {
+            body {
+                padding: 12px;
+            }
+
+            h1 {
+                font-size: 2em;
+            }
+
+            .card {
+                padding: 24px;
+            }
+
+            .playback-controls {
+                flex-direction: column;
+            }
+
+            button {
+                width: 100%;
+            }
+
+            .song-actions, .schedule-actions {
+                flex-direction: column;
+                width: 100%;
+            }
+
+            .btn-small {
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🎵 HomePi Music Scheduler</h1>
+            <p class="subtitle">Schedule your favorite songs to play at specific times</p>
+        </header>
+
+        <div class="main-grid">
+            <!-- Playback Control -->
+            <div class="card">
+                <h2>🎮 Playback Control</h2>
+                
+                <div class="status-indicator">
+                    <div class="status-dot" id="statusDot"></div>
+                    <span id="statusText">Ready</span>
+                </div>
+
+                <div class="volume-control">
+                    <label for="volumeSlider">🔊 Volume:</label>
+                    <input type="range" id="volumeSlider" min="0" max="100" value="70">
+                    <span class="volume-value" id="volumeValue">70%</span>
+                </div>
+
+                <div class="playback-controls">
+                    <button onclick="pausePlayback()">⏸️ Pause</button>
+                    <button onclick="resumePlayback()">▶️ Resume</button>
+                    <button onclick="stopPlayback()" class="danger">⏹️ Stop</button>
+                </div>
+
+                <div id="currentlyPlaying" style="margin-top: 24px; padding: 20px; background: linear-gradient(135deg, var(--primary-light) 0%, var(--secondary) 100%); border-radius: 16px; display: none; color: white; box-shadow: var(--shadow-md);">
+                    <strong style="font-size: 0.9em; opacity: 0.9;">Now Playing:</strong><br>
+                    <span id="currentSongName" style="font-size: 1.2em; font-weight: 700; margin-top: 8px; display: block;"></span>
+                </div>
+            </div>
+
+            <!-- Song Management -->
+            <div class="card">
+                <h2>🎼 Songs</h2>
+                
+                <button onclick="openUploadModal()">📤 Upload Song</button>
+                <button onclick="openYoutubeModal()" style="margin-left: 10px;">📥 Download from YouTube</button>
+
+                <div class="song-list" id="songList">
+                    <div class="loading">Loading songs...</div>
+                </div>
+            </div>
+
+            <!-- Schedules -->
+            <div class="card full-width-card">
+                <h2>⏰ Schedules</h2>
+                
+                <button onclick="openScheduleModal()">➕ Add Schedule</button>
+
+                <div class="schedule-list" id="scheduleList">
+                    <div class="loading">Loading schedules...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Upload Modal -->
+    <div class="modal" id="uploadModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Upload Song</h3>
+                <button class="close-btn" onclick="closeModal('uploadModal')">×</button>
+            </div>
+            <div id="uploadAlert"></div>
+            <div class="form-group">
+                <label for="fileInput">Select Audio File:</label>
+                <input type="file" id="fileInput" accept="audio/*">
+            </div>
+            <button onclick="uploadFile()">Upload</button>
+        </div>
+    </div>
+
+    <!-- YouTube Modal -->
+    <div class="modal" id="youtubeModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Download from YouTube</h3>
+                <button class="close-btn" onclick="closeModal('youtubeModal')">×</button>
+            </div>
+            <div id="youtubeAlert"></div>
+            <div class="form-group">
+                <label for="youtubeUrl">YouTube URL:</label>
+                <input type="text" id="youtubeUrl" placeholder="https://www.youtube.com/watch?v=...">
+            </div>
+            <button onclick="downloadYoutube()">Download</button>
+        </div>
+    </div>
+
+    <!-- Schedule Modal -->
+    <div class="modal" id="scheduleModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="scheduleModalTitle">Add Schedule</h3>
+                <button class="close-btn" onclick="closeModal('scheduleModal')">×</button>
+            </div>
+            <div id="scheduleAlert"></div>
+            
+            <div class="form-group">
+                <label for="scheduleName">Schedule Name:</label>
+                <input type="text" id="scheduleName" placeholder="Morning Alarm">
+            </div>
+
+            <div class="form-group">
+                <label for="scheduleSong">Song:</label>
+                <select id="scheduleSong">
+                    <option value="">Select a song...</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label>Time:</label>
+                <div class="time-inputs">
+                    <div>
+                        <label for="scheduleHour">Hour (0-23):</label>
+                        <input type="number" id="scheduleHour" min="0" max="23" value="8">
+                    </div>
+                    <div>
+                        <label for="scheduleMinute">Minute (0-59):</label>
+                        <input type="number" id="scheduleMinute" min="0" max="59" value="0">
+                    </div>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <div class="checkbox-group">
+                    <input type="checkbox" id="scheduleRepeat">
+                    <label for="scheduleRepeat">Repeat continuously when time is reached</label>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <div class="checkbox-group">
+                    <input type="checkbox" id="scheduleEnabled" checked>
+                    <label for="scheduleEnabled">Enabled</label>
+                </div>
+            </div>
+
+            <input type="hidden" id="scheduleId">
+            <button onclick="saveSchedule()">Save Schedule</button>
+        </div>
+    </div>
+
+    <script>
+        let songs = [];
+        let schedules = [];
+        let currentEditingSchedule = null;
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', function() {
+            loadSongs();
+            loadSchedules();
+            loadStatus();
+            
+            // Volume slider
+            document.getElementById('volumeSlider').addEventListener('input', function(e) {
+                const volume = e.target.value;
+                document.getElementById('volumeValue').textContent = volume + '%';
+                setVolume(volume);
+            });
+
+            // Refresh status every 2 seconds
+            setInterval(loadStatus, 2000);
+        });
+
+        // API calls
+        async function apiCall(endpoint, options = {}) {
+            const response = await fetch(`/api${endpoint}`, {
+                ...options,
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...options.headers
+                }
+            });
+            return response.json();
+        }
+
+        async function loadSongs() {
+            songs = await apiCall('/songs');
+            renderSongs();
+            updateSongSelect();
+        }
+
+        async function loadSchedules() {
+            schedules = await apiCall('/schedules');
+            renderSchedules();
+        }
+
+        async function loadStatus() {
+            const status = await apiCall('/playback/status');
+            updateStatus(status);
+        }
+
+        function updateStatus(status) {
+            const statusDot = document.getElementById('statusDot');
+            const statusText = document.getElementById('statusText');
+            const currentlyPlaying = document.getElementById('currentlyPlaying');
+            const currentSongName = document.getElementById('currentSongName');
+
+            if (status.playing && status.current_song) {
+                statusDot.style.background = '#10b981';
+                statusText.textContent = 'Playing';
+                currentlyPlaying.style.display = 'block';
+                currentSongName.textContent = status.current_song;
+            } else {
+                statusDot.style.background = '#6b7280';
+                statusText.textContent = 'Idle';
+                currentlyPlaying.style.display = 'none';
+            }
+
+            // Update volume if needed
+            const volumeSlider = document.getElementById('volumeSlider');
+            const volumeValue = document.getElementById('volumeValue');
+            if (status.volume !== undefined) {
+                volumeSlider.value = status.volume;
+                volumeValue.textContent = status.volume + '%';
+            }
+        }
+
+        function renderSongs() {
+            const songList = document.getElementById('songList');
+            
+            if (songs.length === 0) {
+                songList.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-state-icon">🎵</div>
+                        <p>No songs yet. Upload or download some music!</p>
+                    </div>
+                `;
+                return;
+            }
+
+            songList.innerHTML = songs.map(song => `
+                <div class="song-item">
+                    <div class="song-info">
+                        <div class="song-name">🎵 ${song.name}</div>
+                        <div class="song-details">${formatFileSize(song.size)}</div>
+                    </div>
+                    <div class="song-actions">
+                        <button class="btn-small" onclick="playSong('${song.name}', false)">▶️ Play</button>
+                        <button class="btn-small" onclick="playSong('${song.name}', true)">🔁 Play & Repeat</button>
+                        <button class="btn-small danger" onclick="deleteSong('${song.name}')">🗑️</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function renderSchedules() {
+            const scheduleList = document.getElementById('scheduleList');
+            
+            if (schedules.length === 0) {
+                scheduleList.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-state-icon">⏰</div>
+                        <p>No schedules yet. Create one to automate your music!</p>
+                    </div>
+                `;
+                return;
+            }
+
+            scheduleList.innerHTML = schedules.map(schedule => `
+                <div class="schedule-item">
+                    <div class="schedule-info">
+                        <div class="song-name">
+                            ${schedule.name}
+                            ${schedule.enabled ? '<span class="badge badge-success">Active</span>' : '<span class="badge badge-warning">Disabled</span>'}
+                            ${schedule.repeat ? '<span class="badge badge-success">Repeat</span>' : ''}
+                        </div>
+                        <div class="song-details">
+                            <span class="schedule-time">${formatTime(schedule.hour, schedule.minute)}</span> • 
+                            🎵 ${schedule.song}
+                        </div>
+                    </div>
+                    <div class="schedule-actions">
+                        <button class="btn-small" onclick="editSchedule(${schedule.id})">✏️ Edit</button>
+                        <button class="btn-small danger" onclick="deleteSchedule(${schedule.id})">🗑️</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function updateSongSelect() {
+            const select = document.getElementById('scheduleSong');
+            select.innerHTML = '<option value="">Select a song...</option>' +
+                songs.map(song => `<option value="${song.name}">${song.name}</option>`).join('');
+        }
+
+        // Playback controls
+        async function playSong(song, repeat) {
+            await apiCall('/playback/play', {
+                method: 'POST',
+                body: JSON.stringify({ song, repeat })
+            });
+            loadStatus();
+        }
+
+        async function stopPlayback() {
+            await apiCall('/playback/stop', { method: 'POST' });
+            loadStatus();
+        }
+
+        async function pausePlayback() {
+            await apiCall('/playback/pause', { method: 'POST' });
+        }
+
+        async function resumePlayback() {
+            await apiCall('/playback/resume', { method: 'POST' });
+        }
+
+        async function setVolume(volume) {
+            await apiCall('/playback/volume', {
+                method: 'POST',
+                body: JSON.stringify({ volume: parseInt(volume) })
+            });
+        }
+
+        // Song management
+        function openUploadModal() {
+            document.getElementById('uploadModal').classList.add('active');
+            document.getElementById('uploadAlert').innerHTML = '';
+        }
+
+        function openYoutubeModal() {
+            document.getElementById('youtubeModal').classList.add('active');
+            document.getElementById('youtubeAlert').innerHTML = '';
+            document.getElementById('youtubeUrl').value = '';
+        }
+
+        function closeModal(modalId) {
+            document.getElementById(modalId).classList.remove('active');
+        }
+
+        async function uploadFile() {
+            const fileInput = document.getElementById('fileInput');
+            const file = fileInput.files[0];
+            
+            if (!file) {
+                showAlert('uploadAlert', 'Please select a file', 'error');
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('file', file);
+
+            try {
+                const response = await fetch('/api/songs/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+                const result = await response.json();
+                
+                if (response.ok) {
+                    showAlert('uploadAlert', 'File uploaded successfully!', 'success');
+                    setTimeout(() => {
+                        closeModal('uploadModal');
+                        loadSongs();
+                    }, 1500);
+                } else {
+                    showAlert('uploadAlert', result.error, 'error');
+                }
+            } catch (error) {
+                showAlert('uploadAlert', 'Upload failed: ' + error.message, 'error');
+            }
+        }
+
+        async function downloadYoutube() {
+            const url = document.getElementById('youtubeUrl').value;
+            
+            if (!url) {
+                showAlert('youtubeAlert', 'Please enter a YouTube URL', 'error');
+                return;
+            }
+
+            showAlert('youtubeAlert', 'Downloading... This may take a minute.', 'success');
+
+            try {
+                const result = await apiCall('/songs/youtube', {
+                    method: 'POST',
+                    body: JSON.stringify({ url })
+                });
+                
+                if (result.error) {
+                    showAlert('youtubeAlert', result.error, 'error');
+                } else {
+                    showAlert('youtubeAlert', 'Downloaded successfully!', 'success');
+                    setTimeout(() => {
+                        closeModal('youtubeModal');
+                        loadSongs();
+                    }, 1500);
+                }
+            } catch (error) {
+                showAlert('youtubeAlert', 'Download failed: ' + error.message, 'error');
+            }
+        }
+
+        async function deleteSong(filename) {
+            if (!confirm(`Delete "${filename}"?`)) return;
+
+            await fetch(`/api/songs/${encodeURIComponent(filename)}`, {
+                method: 'DELETE'
+            });
+            loadSongs();
+        }
+
+        // Schedule management
+        function openScheduleModal() {
+            currentEditingSchedule = null;
+            document.getElementById('scheduleModalTitle').textContent = 'Add Schedule';
+            document.getElementById('scheduleName').value = '';
+            document.getElementById('scheduleSong').value = '';
+            document.getElementById('scheduleHour').value = '8';
+            document.getElementById('scheduleMinute').value = '0';
+            document.getElementById('scheduleRepeat').checked = false;
+            document.getElementById('scheduleEnabled').checked = true;
+            document.getElementById('scheduleModal').classList.add('active');
+            document.getElementById('scheduleAlert').innerHTML = '';
+        }
+
+        function editSchedule(scheduleId) {
+            const schedule = schedules.find(s => s.id === scheduleId);
+            if (!schedule) return;
+
+            currentEditingSchedule = scheduleId;
+            document.getElementById('scheduleModalTitle').textContent = 'Edit Schedule';
+            document.getElementById('scheduleName').value = schedule.name;
+            document.getElementById('scheduleSong').value = schedule.song;
+            document.getElementById('scheduleHour').value = schedule.hour;
+            document.getElementById('scheduleMinute').value = schedule.minute;
+            document.getElementById('scheduleRepeat').checked = schedule.repeat;
+            document.getElementById('scheduleEnabled').checked = schedule.enabled;
+            document.getElementById('scheduleModal').classList.add('active');
+            document.getElementById('scheduleAlert').innerHTML = '';
+        }
+
+        async function saveSchedule() {
+            const name = document.getElementById('scheduleName').value;
+            const song = document.getElementById('scheduleSong').value;
+            const hour = parseInt(document.getElementById('scheduleHour').value);
+            const minute = parseInt(document.getElementById('scheduleMinute').value);
+            const repeat = document.getElementById('scheduleRepeat').checked;
+            const enabled = document.getElementById('scheduleEnabled').checked;
+
+            if (!name || !song) {
+                showAlert('scheduleAlert', 'Please fill in all fields', 'error');
+                return;
+            }
+
+            const scheduleData = { name, song, hour, minute, repeat, enabled };
+
+            try {
+                if (currentEditingSchedule) {
+                    await apiCall(`/schedules/${currentEditingSchedule}`, {
+                        method: 'PUT',
+                        body: JSON.stringify(scheduleData)
+                    });
+                } else {
+                    await apiCall('/schedules', {
+                        method: 'POST',
+                        body: JSON.stringify(scheduleData)
+                    });
+                }
+
+                showAlert('scheduleAlert', 'Schedule saved successfully!', 'success');
+                setTimeout(() => {
+                    closeModal('scheduleModal');
+                    loadSchedules();
+                }, 1500);
+            } catch (error) {
+                showAlert('scheduleAlert', 'Failed to save schedule', 'error');
+            }
+        }
+
+        async function deleteSchedule(scheduleId) {
+            if (!confirm('Delete this schedule?')) return;
+
+            await fetch(`/api/schedules/${scheduleId}`, {
+                method: 'DELETE'
+            });
+            loadSchedules();
+        }
+
+        // Utility functions
+        function formatFileSize(bytes) {
+            if (bytes < 1024) return bytes + ' B';
+            if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+            return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+        }
+
+        function formatTime(hour, minute) {
+            const h = hour.toString().padStart(2, '0');
+            const m = minute.toString().padStart(2, '0');
+            return `${h}:${m}`;
+        }
+
+        function showAlert(elementId, message, type) {
+            const alertClass = type === 'error' ? 'alert-error' : 'alert-success';
+            document.getElementById(elementId).innerHTML = 
+                `<div class="alert ${alertClass}">${message}</div>`;
+        }
+
+        // Close modals when clicking outside
+        window.onclick = function(event) {
+            if (event.target.classList.contains('modal')) {
+                event.target.classList.remove('active');
+            }
+        }
+    </script>
+</body>
+</html>
+

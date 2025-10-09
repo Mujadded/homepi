@@ -1,0 +1,16 @@
+[Unit]
+Description=HomePi Music Scheduler
+After=network.target sound.target
+
+[Service]
+Type=simple
+User=pi
+WorkingDirectory=/home/pi/homepi
+Environment="DISPLAY=:0"
+ExecStart=/usr/bin/python3 /home/pi/homepi/app.py
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
+
