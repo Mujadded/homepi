@@ -7,7 +7,22 @@
 - Press and hold the Bluetooth/pairing button until it blinks
 - Keep it close to the Raspberry Pi (within 3 feet)
 
-### Step 2: Connect via Command Line (Easiest Method)
+### Step 2: Prepare Bluetooth (Important!)
+
+First, make sure Bluetooth is ready:
+
+```bash
+# Unblock Bluetooth
+sudo rfkill unblock bluetooth
+
+# Restart Bluetooth service
+sudo systemctl restart bluetooth
+
+# Wait a few seconds
+sleep 3
+```
+
+### Step 3: Connect via Command Line
 
 ```bash
 # Start Bluetooth control
@@ -38,7 +53,7 @@ connect XX:XX:XX:XX:XX:XX
 exit
 ```
 
-### Step 3: Set Bluetooth as Default Audio Output
+### Step 4: Set Bluetooth as Default Audio Output
 
 ```bash
 # Install required packages
@@ -52,7 +67,7 @@ pactl set-default-sink bluez_sink.XX_XX_XX_XX_XX_XX.a2dp_sink
 # (Replace XX_XX_XX_XX_XX_XX with your speaker's MAC using underscores)
 ```
 
-### Step 4: Test the Audio
+### Step 5: Test the Audio
 
 ```bash
 # Test with speaker-test
@@ -208,6 +223,28 @@ bash start.sh
 
 ## 🔍 Troubleshooting
 
+### "NotReady" Error When Scanning?
+
+```bash
+# Quick fix - run this script
+bash bluetooth-quick-fix.sh
+
+# Or manually:
+# 1. Unblock Bluetooth
+sudo rfkill unblock bluetooth
+
+# 2. Restart Bluetooth service
+sudo systemctl restart bluetooth
+
+# 3. Wait a few seconds, then try again
+sleep 3
+bluetoothctl
+
+# In bluetoothctl:
+power on
+scan on
+```
+
 ### Speaker Not Found During Scan?
 
 ```bash
@@ -218,17 +255,50 @@ sudo systemctl restart bluetooth
 # Try scanning again
 ```
 
-### Audio Not Coming from Speaker?
+### Audio Not Coming from Speaker? (Most Common Issue!)
+
+This is usually because audio routing isn't set up. **Use the fix script:**
 
 ```bash
-# Check audio routing
+# Automatic fix - run this!
+bash fix-bluetooth-audio.sh
+```
+
+**Or fix manually:**
+
+```bash
+# 1. Install/restart PulseAudio
+sudo apt-get install -y pulseaudio pulseaudio-module-bluetooth
+pulseaudio --kill
+sleep 2
+pulseaudio --start
+sleep 3
+
+# 2. Find your Bluetooth audio sink
 pactl list short sinks
 
-# Make sure Bluetooth sink is default
+# Look for a line like: bluez_sink.XX_XX_XX_XX_XX_XX.a2dp_sink
+
+# 3. Set it as default (replace with your sink name)
 pactl set-default-sink bluez_sink.XX_XX_XX_XX_XX_XX.a2dp_sink
 
-# Check volume
+# 4. Set volume
 pactl set-sink-volume @DEFAULT_SINK@ 70%
+
+# 5. Test
+speaker-test -t wav -c 2 -l 1
+```
+
+**If sink not found:**
+```bash
+# Disconnect and reconnect speaker
+bluetoothctl disconnect XX:XX:XX:XX:XX:XX
+sleep 2
+bluetoothctl connect XX:XX:XX:XX:XX:XX
+sleep 5
+
+# Try finding sink again
+pactl list short sinks
 ```
 
 ### Connection Drops?
@@ -248,15 +318,38 @@ PairableTimeout = 0
 
 ### No Sound in HomePi?
 
-Make sure PulseAudio is running:
+**Quick fix:**
 ```bash
-# Check status
-pulseaudio --check || echo "Not running"
+# Run the audio fix script
+bash fix-bluetooth-audio.sh
 
-# Start it
+# Then restart HomePi
+cd ~/homepi
+bash start.sh
+```
+
+**Manual fix:**
+```bash
+# 1. Make sure PulseAudio is running
+pulseaudio --kill
+sleep 2
 pulseaudio --start
+sleep 3
 
-# Restart HomePi
+# 2. Set Bluetooth as default
+pactl set-default-sink bluez_sink.XX_XX_XX_XX_XX_XX.a2dp_sink
+
+# 3. Restart HomePi
+cd ~/homepi
+# Stop current instance (Ctrl+C)
+bash start.sh
+```
+
+**Check pygame audio:**
+```bash
+# pygame needs SDL audio env variable for PulseAudio
+export SDL_AUDIODRIVER=pulseaudio
+bash start.sh
 ```
 
 ---

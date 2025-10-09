@@ -15,6 +15,18 @@ if [ ! -d "venv" ]; then
     exit 1
 fi
 
+# Make sure PulseAudio is running (needed for Bluetooth audio)
+if command -v pulseaudio &> /dev/null; then
+    if ! pulseaudio --check 2>/dev/null; then
+        echo "Starting PulseAudio..."
+        pulseaudio --start
+        sleep 2
+    fi
+fi
+
+# Set SDL audio driver to use PulseAudio (for Bluetooth compatibility)
+export SDL_AUDIODRIVER=pulseaudio
+
 # Activate virtual environment and start the app
 source venv/bin/activate
 python app.py

@@ -22,9 +22,12 @@ if ! command -v pactl &> /dev/null; then
     sudo apt-get install -y pulseaudio pulseaudio-module-bluetooth
 fi
 
-# Start Bluetooth service
-echo "Starting Bluetooth service..."
-sudo systemctl start bluetooth
+# Unblock and start Bluetooth service
+echo "Preparing Bluetooth..."
+sudo rfkill unblock bluetooth
+sleep 1
+sudo systemctl restart bluetooth
+sleep 2
 
 # Start PulseAudio if not running
 if ! pulseaudio --check; then
