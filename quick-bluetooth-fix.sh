@@ -37,15 +37,54 @@ echo ""
 
 # Restart audio system
 if [ "$AUDIO_SYSTEM" = "pipewire" ]; then
+    echo "Restarting PipeWire..."
     systemctl --user restart pipewire pipewire-pulse wireplumber 2>/dev/null
     sleep 3
     
-    # Set A2DP profile
-    BT_CARD=$(pactl list cards short | grep bluez | awk '{print $2}' | head -1)
-    if [ -n "$BT_CARD" ]; then
-        echo "Setting A2DP profile..."
-        pactl set-card-profile "$BT_CARD" a2dp-sink 2>/dev/null || pactl set-card-profile "$BT_CARD" a2dp_sink 2>/dev/null
+    # Convert MAC address for card name (: to _)
+    CARD_MAC=$(echo "$SPEAKER_MAC" | tr ':' '_')
+    BT_CARD="bluez_card.$CARD_MAC"
+    
+    echo "Looking for Bluetooth card: $BT_CARD"
+    
+    # Check if card exists
+    if pactl list cards short | grep -q "$BT_CARD"; then
+        echo "✅ Card found!"
+        echo ""
+        echo "Setting A2DP profile (high-quality audio)..."
+        
+        # Try both profile name formats
+        if pactl set-card-profile "$BT_CARD" a2dp-sink 2>/dev/null; then
+            echo "✅ A2DP profile set (a2dp-sink)"
+        elif pactl set-card-profile "$BT_CARD" a2dp_sink 2>/dev/null; then
+            echo "✅ A2DP profile set (a2dp_sink)"
+        else
+            echo "⚠️  Could not set A2DP profile"
+            echo ""
+            echo "Available profiles:"
+            pactl list cards | grep -A 20 "$BT_CARD" | grep "Profiles:" -A 10
+        fi
+        
+        sleep 3
+    else
+        echo "⚠️  Card not found yet"
+        echo ""
+        echo "Available cards:"
+        pactl list cards short
+        echo ""
+        echo "Trying to reconnect speaker..."
+        bluetoothctl disconnect "$SPEAKER_MAC"
         sleep 2
+        bluetoothctl connect "$SPEAKER_MAC"
+        sleep 5
+        
+        # Try again
+        if pactl list cards short | grep -q "bluez"; then
+            BT_CARD=$(pactl list cards short | grep bluez | awk '{print $2}' | head -1)
+            echo "✅ Card found: $BT_CARD"
+            pactl set-card-profile "$BT_CARD" a2dp-sink 2>/dev/null || pactl set-card-profile "$BT_CARD" a2dp_sink 2>/dev/null
+            sleep 2
+        fi
     fi
 else
     pulseaudio --kill 2>/dev/null
@@ -68,9 +107,25 @@ done
 if [ -z "$BT_SINK" ]; then
     echo "❌ Could not find Bluetooth audio sink"
     echo ""
-    echo "Try:"
-    echo "  1. Disconnect and reconnect: bluetoothctl disconnect $SPEAKER_MAC && bluetoothctl connect $SPEAKER_MAC"
-    echo "  2. Run full setup: bash setup-bluetooth.sh"
+    echo "Debugging information:"
+    echo ""
+    echo "Cards:"
+    pactl list cards short
+    echo ""
+    echo "Sinks:"
+    pactl list short sinks
+    echo ""
+    
+    if [ "$AUDIO_SYSTEM" = "pipewire" ]; then
+        echo "For PipeWire, you need to set A2DP profile manually:"
+        echo ""
+        CARD_MAC=$(echo "$SPEAKER_MAC" | tr ':' '_')
+        echo "  pactl set-card-profile bluez_card.$CARD_MAC a2dp-sink"
+        echo ""
+    fi
+    
+    echo "Or run full setup:"
+    echo "  bash setup-bluetooth.sh"
     exit 1
 fi
 
