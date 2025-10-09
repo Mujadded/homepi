@@ -169,6 +169,14 @@ def download_youtube():
             }],
             'outtmpl': os.path.join(SONGS_DIR, '%(title)s.%(ext)s'),
             'quiet': False,
+            'no_warnings': False,
+            # Use cookies and headers to avoid 403 errors
+            'nocheckcertificate': True,
+            'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            # Extract audio only
+            'extract_audio': True,
+            # Prefer youtube music if available
+            'extractor_args': {'youtube': {'player_client': ['android', 'web']}},
         }
         
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -178,6 +186,13 @@ def download_youtube():
             filename = os.path.splitext(os.path.basename(filename))[0] + '.mp3'
             
         return jsonify({'message': 'Song downloaded successfully', 'filename': filename})
+    except yt_dlp.utils.DownloadError as e:
+        error_msg = str(e)
+        if '403' in error_msg or 'Forbidden' in error_msg:
+            return jsonify({
+                'error': 'YouTube blocked the download. Try updating yt-dlp: ./venv/bin/pip install --upgrade yt-dlp'
+            }), 500
+        return jsonify({'error': f'Download failed: {error_msg}'}), 500
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 

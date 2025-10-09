@@ -157,14 +157,21 @@ hostname -I
 sudo ufw status
 ```
 
-### 📥 YouTube Download Fails?
-```bash
-# Update yt-dlp
-pip3 install --upgrade yt-dlp
+### 📥 YouTube Download Fails (403 Forbidden)?
 
-# Check ffmpeg
-ffmpeg -version
+YouTube changes their API frequently. Update yt-dlp:
+
+```bash
+# Use the update script
+bash update-ytdlp.sh
+
+# Or manually
+./venv/bin/pip install --upgrade yt-dlp
+
+# Restart the app
 ```
+
+**Note:** YouTube blocking is common. yt-dlp usually releases fixes within days.
 
 ### ⏰ Schedule Not Working?
 - Verify the schedule is enabled (green "Active" badge)
