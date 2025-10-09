@@ -4,13 +4,13 @@ After=network.target sound.target bluetooth.target
 
 [Service]
 Type=simple
-User=pi
-WorkingDirectory=/home/pi/homepi
+User=mujadded
+WorkingDirectory=/home/mujadded/homepi
 Environment="DISPLAY=:0"
 Environment="SDL_AUDIODRIVER=pulseaudio"
 Environment="PULSE_RUNTIME_PATH=/run/user/1000/pulse/"
 ExecStartPre=/bin/sleep 5
-ExecStart=/home/pi/homepi/venv/bin/python /home/pi/homepi/app.py
+ExecStart=/home/mujadded/homepi/venv/bin/python /home/mujadded/homepi/app.py
 Restart=always
 RestartSec=10
 
