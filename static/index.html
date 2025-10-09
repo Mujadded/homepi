@@ -677,6 +677,93 @@
             grid-column: 1 / -1;
         }
 
+        .health-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 16px;
+            margin-top: 20px;
+        }
+
+        .health-metric {
+            background: var(--gray-50);
+            padding: 16px;
+            border-radius: 12px;
+            text-align: center;
+            border: 2px solid var(--gray-200);
+            transition: all 0.3s ease;
+        }
+
+        .health-metric:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-md);
+        }
+
+        .health-metric-value {
+            font-size: 2em;
+            font-weight: 800;
+            background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin: 8px 0;
+        }
+
+        .health-metric-label {
+            font-size: 0.9em;
+            color: var(--gray-600);
+            font-weight: 600;
+        }
+
+        .health-warning {
+            background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+            border-color: var(--warning);
+        }
+
+        .health-danger {
+            background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%);
+            border-color: var(--danger);
+        }
+
+        .health-success {
+            background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%);
+            border-color: var(--success);
+        }
+
+        .warnings-list {
+            list-style: none;
+            padding: 0;
+            margin-top: 12px;
+        }
+
+        .warnings-list li {
+            padding: 8px 12px;
+            background: var(--gray-50);
+            border-radius: 8px;
+            margin-bottom: 8px;
+            border-left: 4px solid var(--warning);
+            font-weight: 500;
+        }
+
+        .backup-list {
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        .backup-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px;
+            background: var(--gray-50);
+            border-radius: 8px;
+            margin-bottom: 8px;
+            border: 2px solid var(--gray-200);
+        }
+
+        .backup-item:hover {
+            border-color: var(--primary);
+        }
+
         /* Responsive design improvements */
         @media (max-width: 768px) {
             body {
@@ -716,6 +803,56 @@
             <h1>🎵 HomePi Music Scheduler</h1>
             <p class="subtitle">Schedule your favorite songs to play at specific times</p>
         </header>
+
+        <!-- System Health Dashboard -->
+        <div class="card full-width-card" style="margin-bottom: 24px;">
+            <h2>📊 System Health</h2>
+            <div class="health-grid">
+                <div class="health-metric" id="cpuMetric">
+                    <div class="health-metric-label">CPU Usage</div>
+                    <div class="health-metric-value" id="cpuValue">--</div>
+                </div>
+                <div class="health-metric" id="memoryMetric">
+                    <div class="health-metric-label">Memory</div>
+                    <div class="health-metric-value" id="memoryValue">--</div>
+                </div>
+                <div class="health-metric" id="diskMetric">
+                    <div class="health-metric-label">Disk Space</div>
+                    <div class="health-metric-value" id="diskValue">--</div>
+                </div>
+                <div class="health-metric" id="tempMetric">
+                    <div class="health-metric-label">Temperature</div>
+                    <div class="health-metric-value" id="tempValue">--</div>
+                </div>
+                <div class="health-metric" id="uptimeMetric">
+                    <div class="health-metric-label">Uptime</div>
+                    <div class="health-metric-value" id="uptimeValue">--</div>
+                </div>
+                <div class="health-metric" id="bluetoothMetric">
+                    <div class="health-metric-label">Bluetooth</div>
+                    <div class="health-metric-value" id="bluetoothValue">--</div>
+                </div>
+            </div>
+            <div id="warningsContainer" style="margin-top: 20px; display: none;">
+                <h3 style="color: var(--warning); margin-bottom: 12px;">⚠️ Warnings</h3>
+                <ul class="warnings-list" id="warningsList"></ul>
+                <button onclick="reconnectBluetooth()" style="margin-top: 12px;">🔄 Reconnect Bluetooth</button>
+            </div>
+        </div>
+
+        <!-- Backup Management -->
+        <div class="card full-width-card" style="margin-bottom: 24px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <h2>💾 Backup Management</h2>
+                <button onclick="createBackup()">Create Backup Now</button>
+            </div>
+            <p style="color: var(--gray-600); margin-bottom: 16px;">
+                Automatic backups run daily at 3:00 AM. Backups are kept for 7 days.
+            </p>
+            <div class="backup-list" id="backupList">
+                <div class="loading">Loading backups</div>
+            </div>
+        </div>
 
         <div class="main-grid">
             <!-- Playback Control -->
@@ -928,6 +1065,8 @@
             loadSchedules();
             loadStatus();
             updateCurrentTime();
+            loadSystemHealth();
+            loadBackups();
             
             // Volume slider
             document.getElementById('volumeSlider').addEventListener('input', function(e) {
@@ -941,6 +1080,9 @@
             
             // Update current time every second
             setInterval(updateCurrentTime, 1000);
+            
+            // Refresh health every 30 seconds
+            setInterval(loadSystemHealth, 30000);
             
             // Schedule volume slider
             document.getElementById('scheduleVolume').addEventListener('input', function(e) {
@@ -1512,6 +1654,151 @@
             const alertClass = type === 'error' ? 'alert-error' : 'alert-success';
             document.getElementById(elementId).innerHTML = 
                 `<div class="alert ${alertClass}">${message}</div>`;
+        }
+
+        // System Health Functions
+        async function loadSystemHealth() {
+            try {
+                const health = await apiCall('/health');
+                
+                // Update CPU
+                const cpuMetric = document.getElementById('cpuMetric');
+                document.getElementById('cpuValue').textContent = health.cpu_percent.toFixed(1) + '%';
+                updateHealthStatus(cpuMetric, health.cpu_percent, 80);
+                
+                // Update Memory
+                const memoryMetric = document.getElementById('memoryMetric');
+                document.getElementById('memoryValue').textContent = health.memory_percent.toFixed(1) + '%';
+                updateHealthStatus(memoryMetric, health.memory_percent, 80);
+                
+                // Update Disk
+                const diskMetric = document.getElementById('diskMetric');
+                document.getElementById('diskValue').textContent = health.disk_percent.toFixed(1) + '%';
+                updateHealthStatus(diskMetric, health.disk_percent, 90);
+                
+                // Update Temperature
+                const tempMetric = document.getElementById('tempMetric');
+                if (health.temperature) {
+                    document.getElementById('tempValue').textContent = health.temperature + '°C';
+                    updateHealthStatus(tempMetric, health.temperature, 75);
+                } else {
+                    document.getElementById('tempValue').textContent = 'N/A';
+                }
+                
+                // Update Uptime
+                if (health.uptime) {
+                    const days = Math.floor(health.uptime / 86400);
+                    const hours = Math.floor((health.uptime % 86400) / 3600);
+                    const uptimeText = days > 0 ? `${days}d ${hours}h` : `${hours}h`;
+                    document.getElementById('uptimeValue').textContent = uptimeText;
+                }
+                
+                // Update Bluetooth
+                const bluetoothMetric = document.getElementById('bluetoothMetric');
+                if (health.bluetooth_connected) {
+                    document.getElementById('bluetoothValue').textContent = '✓';
+                    bluetoothMetric.classList.add('health-success');
+                    bluetoothMetric.classList.remove('health-danger');
+                } else {
+                    document.getElementById('bluetoothValue').textContent = '✗';
+                    bluetoothMetric.classList.add('health-danger');
+                    bluetoothMetric.classList.remove('health-success');
+                }
+                
+                // Update Warnings
+                const warningsContainer = document.getElementById('warningsContainer');
+                const warningsList = document.getElementById('warningsList');
+                
+                if (health.warnings && health.warnings.length > 0) {
+                    warningsContainer.style.display = 'block';
+                    warningsList.innerHTML = health.warnings.map(w => `<li>${w}</li>`).join('');
+                } else {
+                    warningsContainer.style.display = 'none';
+                }
+            } catch (error) {
+                console.error('Failed to load health:', error);
+            }
+        }
+        
+        function updateHealthStatus(element, value, threshold) {
+            element.classList.remove('health-success', 'health-warning', 'health-danger');
+            if (value < threshold * 0.8) {
+                element.classList.add('health-success');
+            } else if (value < threshold) {
+                element.classList.add('health-warning');
+            } else {
+                element.classList.add('health-danger');
+            }
+        }
+        
+        async function reconnectBluetooth() {
+            try {
+                await apiCall('/bluetooth/reconnect', { method: 'POST' });
+                alert('Bluetooth reconnection initiated. Check status in a moment.');
+                setTimeout(loadSystemHealth, 5000);
+            } catch (error) {
+                alert('Failed to reconnect Bluetooth');
+            }
+        }
+        
+        // Backup Functions
+        async function loadBackups() {
+            try {
+                const backups = await apiCall('/backups');
+                const backupList = document.getElementById('backupList');
+                
+                if (backups.length === 0) {
+                    backupList.innerHTML = '<p style="color: var(--gray-600); text-align: center; padding: 20px;">No backups yet</p>';
+                    return;
+                }
+                
+                backupList.innerHTML = backups.map(backup => {
+                    const date = new Date(backup.created * 1000);
+                    const dateStr = date.toLocaleString();
+                    return `
+                        <div class="backup-item">
+                            <div>
+                                <div style="font-weight: 600;">${backup.filename}</div>
+                                <div style="font-size: 0.9em; color: var(--gray-600);">
+                                    ${dateStr} • ${formatFileSize(backup.size)}
+                                </div>
+                            </div>
+                            <button class="btn-small" onclick="restoreBackup('${backup.filename}')">
+                                Restore
+                            </button>
+                        </div>
+                    `;
+                }).join('');
+            } catch (error) {
+                console.error('Failed to load backups:', error);
+            }
+        }
+        
+        async function createBackup() {
+            try {
+                await apiCall('/backups/create', { method: 'POST' });
+                alert('Backup created successfully!');
+                loadBackups();
+            } catch (error) {
+                alert('Failed to create backup');
+            }
+        }
+        
+        async function restoreBackup(filename) {
+            if (!confirm(`Restore backup: ${filename}?\n\nThis will replace your current schedules.`)) {
+                return;
+            }
+            
+            try {
+                await apiCall('/backups/restore', {
+                    method: 'POST',
+                    body: JSON.stringify({ filename })
+                });
+                alert('Backup restored successfully!');
+                loadSchedules();
+            } catch (error) {
+                alert('Failed to restore backup');
+            }
         }
 
         // Close modals when clicking outside

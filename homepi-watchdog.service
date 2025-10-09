@@ -1,0 +1,15 @@
+[Unit]
+Description=HomePi Watchdog - Monitor and restart if needed
+After=network.target homepi.service
+
+[Service]
+Type=simple
+User=mujadded
+WorkingDirectory=/home/mujadded/homepi
+ExecStart=/home/mujadded/homepi/watchdog.sh
+Restart=always
+RestartSec=30
+
+[Install]
+WantedBy=multi-user.target
+

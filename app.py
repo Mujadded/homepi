@@ -1,7 +1,10 @@
 import os
 import json
 import threading
-from datetime import datetime
+import subprocess
+import shutil
+import psutil
+from datetime import datetime, timedelta
 from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
 from apscheduler.schedulers.background import BackgroundScheduler
@@ -16,7 +19,9 @@ CORS(app)
 # Configuration
 SONGS_DIR = os.path.join(os.path.dirname(__file__), 'songs')
 SCHEDULES_FILE = os.path.join(os.path.dirname(__file__), 'schedules.json')
+BACKUP_DIR = os.path.join(os.path.dirname(__file__), 'backups')
 os.makedirs(SONGS_DIR, exist_ok=True)
+os.makedirs(BACKUP_DIR, exist_ok=True)
 
 # Initialize pygame mixer for audio playback
 pygame.mixer.init()
@@ -30,6 +35,11 @@ scheduler.start()
 # Lock for thread-safe operations
 playback_lock = threading.Lock()
 current_playing = None
+
+# Health monitoring
+last_bluetooth_check = None
+bluetooth_connected = False
+system_warnings = []
 
 
 def load_schedules():
@@ -109,6 +119,167 @@ def reload_all_schedules():
                 schedule.get('volume'),
                 schedule.get('days_of_week')
             )
+
+
+def backup_schedules():
+    """Create a backup of schedules file"""
+    try:
+        if os.path.exists(SCHEDULES_FILE):
+            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+            backup_file = os.path.join(BACKUP_DIR, f'schedules_{timestamp}.json')
+            shutil.copy2(SCHEDULES_FILE, backup_file)
+            print(f"Backup created: {backup_file}")
+            
+            # Clean old backups (keep last 7 days)
+            cleanup_old_backups()
+            return True
+    except Exception as e:
+        print(f"Backup failed: {e}")
+        return False
+
+
+def cleanup_old_backups():
+    """Remove backups older than 7 days"""
+    try:
+        cutoff_date = datetime.now() - timedelta(days=7)
+        for filename in os.listdir(BACKUP_DIR):
+            if filename.startswith('schedules_') and filename.endswith('.json'):
+                filepath = os.path.join(BACKUP_DIR, filename)
+                file_time = datetime.fromtimestamp(os.path.getmtime(filepath))
+                if file_time < cutoff_date:
+                    os.remove(filepath)
+                    print(f"Removed old backup: {filename}")
+    except Exception as e:
+        print(f"Cleanup failed: {e}")
+
+
+def restore_from_backup(backup_filename):
+    """Restore schedules from a backup"""
+    try:
+        backup_path = os.path.join(BACKUP_DIR, backup_filename)
+        if os.path.exists(backup_path):
+            shutil.copy2(backup_path, SCHEDULES_FILE)
+            reload_all_schedules()
+            return True
+        return False
+    except Exception as e:
+        print(f"Restore failed: {e}")
+        return False
+
+
+def get_system_health():
+    """Get system health metrics"""
+    global system_warnings
+    system_warnings = []
+    
+    health = {
+        'cpu_percent': psutil.cpu_percent(interval=1),
+        'memory_percent': psutil.virtual_memory().percent,
+        'disk_percent': psutil.disk_usage('/').percent,
+        'temperature': get_cpu_temperature(),
+        'uptime': get_uptime(),
+        'bluetooth_connected': check_bluetooth_connection(),
+        'warnings': system_warnings
+    }
+    
+    # Check for warnings
+    if health['cpu_percent'] > 80:
+        system_warnings.append('High CPU usage')
+    if health['memory_percent'] > 80:
+        system_warnings.append('High memory usage')
+    if health['disk_percent'] > 90:
+        system_warnings.append('Low disk space')
+    if health['temperature'] and health['temperature'] > 75:
+        system_warnings.append('High CPU temperature')
+    if not health['bluetooth_connected']:
+        system_warnings.append('Bluetooth speaker disconnected')
+    
+    health['warnings'] = system_warnings
+    return health
+
+
+def get_cpu_temperature():
+    """Get CPU temperature (Raspberry Pi specific)"""
+    try:
+        with open('/sys/class/thermal/thermal_zone0/temp', 'r') as f:
+            temp = float(f.read().strip()) / 1000.0
+            return round(temp, 1)
+    except:
+        return None
+
+
+def get_uptime():
+    """Get system uptime in seconds"""
+    try:
+        with open('/proc/uptime', 'r') as f:
+            uptime_seconds = float(f.read().split()[0])
+            return int(uptime_seconds)
+    except:
+        return None
+
+
+def check_bluetooth_connection():
+    """Check if Bluetooth speaker is connected"""
+    global last_bluetooth_check, bluetooth_connected
+    
+    try:
+        # Run bluetoothctl to check connected devices
+        result = subprocess.run(
+            ['bluetoothctl', 'info'],
+            capture_output=True,
+            text=True,
+            timeout=5
+        )
+        
+        # Check if any device is connected
+        bluetooth_connected = 'Connected: yes' in result.stdout
+        last_bluetooth_check = datetime.now()
+        return bluetooth_connected
+    except:
+        return False
+
+
+def auto_reconnect_bluetooth():
+    """Attempt to reconnect Bluetooth speaker"""
+    try:
+        print("Attempting Bluetooth auto-reconnect...")
+        subprocess.run(
+            ['bash', os.path.join(os.path.dirname(__file__), 'quick-bluetooth-fix.sh')],
+            timeout=30
+        )
+        return True
+    except Exception as e:
+        print(f"Auto-reconnect failed: {e}")
+        return False
+
+
+def schedule_daily_backup():
+    """Schedule daily backup at 3 AM"""
+    scheduler.add_job(
+        backup_schedules,
+        trigger=CronTrigger(hour=3, minute=0),
+        id='daily_backup',
+        replace_existing=True
+    )
+    print("Daily backup scheduled for 3:00 AM")
+
+
+def schedule_health_check():
+    """Schedule health check every 5 minutes"""
+    def health_check():
+        health = get_system_health()
+        if not health['bluetooth_connected']:
+            print("Bluetooth disconnected, attempting reconnect...")
+            auto_reconnect_bluetooth()
+    
+    scheduler.add_job(
+        health_check,
+        trigger='interval',
+        minutes=5,
+        id='health_check',
+        replace_existing=True
+    )
+    print("Health check scheduled every 5 minutes")
 
 
 # API Routes
@@ -354,9 +525,79 @@ def get_status():
     })
 
 
+@app.route('/api/health', methods=['GET'])
+def health_status():
+    """Get system health status"""
+    return jsonify(get_system_health())
+
+
+@app.route('/api/backups', methods=['GET'])
+def list_backups():
+    """List all available backups"""
+    backups = []
+    try:
+        for filename in sorted(os.listdir(BACKUP_DIR), reverse=True):
+            if filename.startswith('schedules_') and filename.endswith('.json'):
+                filepath = os.path.join(BACKUP_DIR, filename)
+                backups.append({
+                    'filename': filename,
+                    'size': os.path.getsize(filepath),
+                    'created': os.path.getmtime(filepath)
+                })
+    except Exception as e:
+        print(f"Error listing backups: {e}")
+    return jsonify(backups)
+
+
+@app.route('/api/backups/create', methods=['POST'])
+def create_backup():
+    """Create a manual backup"""
+    if backup_schedules():
+        return jsonify({'message': 'Backup created successfully'})
+    return jsonify({'error': 'Backup failed'}), 500
+
+
+@app.route('/api/backups/restore', methods=['POST'])
+def restore_backup():
+    """Restore from a backup"""
+    data = request.json
+    filename = data.get('filename')
+    
+    if not filename:
+        return jsonify({'error': 'No backup filename provided'}), 400
+    
+    if restore_from_backup(filename):
+        return jsonify({'message': 'Backup restored successfully'})
+    return jsonify({'error': 'Restore failed'}), 500
+
+
+@app.route('/api/bluetooth/reconnect', methods=['POST'])
+def reconnect_bluetooth():
+    """Manually trigger Bluetooth reconnection"""
+    if auto_reconnect_bluetooth():
+        return jsonify({'message': 'Bluetooth reconnection initiated'})
+    return jsonify({'error': 'Reconnection failed'}), 500
+
+
 if __name__ == '__main__':
     # Load all schedules on startup
     reload_all_schedules()
+    
+    # Setup automated tasks
+    schedule_daily_backup()
+    schedule_health_check()
+    
+    # Create initial backup
+    backup_schedules()
+    
+    print("=" * 50)
+    print("HomePi Music Scheduler Started")
+    print("=" * 50)
+    print(f"Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    print(f"Schedules loaded: {len(load_schedules())}")
+    print("Daily backup: 3:00 AM")
+    print("Health check: Every 5 minutes")
+    print("=" * 50)
     
     # Run the Flask app
     app.run(host='0.0.0.0', port=5000, debug=True)
