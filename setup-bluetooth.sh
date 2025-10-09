@@ -105,39 +105,67 @@ echo ""
 echo -e "${BLUE}━━━ Step 3: Connecting Bluetooth Speaker ━━━${NC}"
 echo ""
 
-# Check if a speaker MAC is already saved
-SAVED_MAC=""
-if [ -f ~/.homepi_bluetooth_speaker ]; then
-    SAVED_MAC=$(cat ~/.homepi_bluetooth_speaker)
-    print_info "Found previously paired speaker: $SAVED_MAC"
+# Check if any speaker is already connected
+print_info "Checking for already connected speakers..."
+CONNECTED_MAC=$(bluetoothctl devices Connected 2>/dev/null | grep "Device" | awk '{print $2}' | head -1)
+
+if [ -n "$CONNECTED_MAC" ]; then
+    DEVICE_NAME=$(bluetoothctl info "$CONNECTED_MAC" | grep "Name:" | cut -d: -f2- | xargs)
+    print_success "Found already connected speaker: $DEVICE_NAME ($CONNECTED_MAC)"
     echo ""
     echo "Options:"
-    echo "  1) Connect to saved speaker ($SAVED_MAC)"
-    echo "  2) Scan for new speaker"
+    echo "  1) Use this connected speaker"
+    echo "  2) Disconnect and scan for a different speaker"
     echo ""
     read -p "Enter choice (1 or 2): " CHOICE
     echo ""
     
     if [ "$CHOICE" = "1" ]; then
-        SPEAKER_MAC="$SAVED_MAC"
-        print_info "Connecting to $SPEAKER_MAC..."
+        SPEAKER_MAC="$CONNECTED_MAC"
+        print_success "Using connected speaker!"
+        CHOICE="skip_scan"
+    else
+        print_info "Disconnecting current speaker..."
+        bluetoothctl disconnect "$CONNECTED_MAC"
+        sleep 2
+        CHOICE="2"
+    fi
+else
+    # Check if a speaker MAC is already saved
+    SAVED_MAC=""
+    if [ -f ~/.homepi_bluetooth_speaker ]; then
+        SAVED_MAC=$(cat ~/.homepi_bluetooth_speaker)
+        print_info "Found previously paired speaker: $SAVED_MAC"
+        echo ""
+        echo "Options:"
+        echo "  1) Connect to saved speaker ($SAVED_MAC)"
+        echo "  2) Scan for new speaker"
+        echo ""
+        read -p "Enter choice (1 or 2): " CHOICE
+        echo ""
         
-        # Try to connect
-        if echo -e "connect $SPEAKER_MAC\nquit" | bluetoothctl | grep -q "Connection successful"; then
-            print_success "Connected to saved speaker!"
+        if [ "$CHOICE" = "1" ]; then
+            SPEAKER_MAC="$SAVED_MAC"
+            print_info "Connecting to $SPEAKER_MAC..."
+            
+            # Try to connect
+            if echo -e "connect $SPEAKER_MAC\nquit" | bluetoothctl | grep -q "Connection successful"; then
+                print_success "Connected to saved speaker!"
+            else
+                print_warning "Connection failed. Will try pairing..."
+                echo -e "pair $SPEAKER_MAC\ntrust $SPEAKER_MAC\nconnect $SPEAKER_MAC\nquit" | bluetoothctl
+            fi
+            CHOICE="skip_scan"
         else
-            print_warning "Connection failed. Will try pairing..."
-            echo -e "pair $SPEAKER_MAC\ntrust $SPEAKER_MAC\nconnect $SPEAKER_MAC\nquit" | bluetoothctl
+            CHOICE="2"
         fi
     else
         CHOICE="2"
     fi
-else
-    CHOICE="2"
 fi
 
 # Scan for new speaker
-if [ "$CHOICE" = "2" ]; then
+if [ "$CHOICE" = "2" ] || [ "$CHOICE" = "" ]; then
     echo -e "${YELLOW}════════════════════════════════════════════════════════════${NC}"
     echo -e "${YELLOW}  IMPORTANT: Put your Bluetooth speaker in PAIRING MODE now!${NC}"
     echo -e "${YELLOW}  (Usually: Press and hold Bluetooth button until it blinks)${NC}"
@@ -166,17 +194,39 @@ EOF
     echo ""
     
     # Show found devices
+    DEVICE_COUNT=$(grep "Device" /tmp/bt_scan.log | grep -v "not available" | wc -l)
+    
+    if [ "$DEVICE_COUNT" -eq 0 ]; then
+        print_error "No devices found!"
+        echo ""
+        echo "Troubleshooting:"
+        echo "  • Make sure speaker is in pairing mode (flashing blue light)"
+        echo "  • Keep speaker within 3 feet of Raspberry Pi"
+        echo "  • Try turning speaker off and on again"
+        echo "  • Make sure speaker isn't connected to another device"
+        echo ""
+        rm -f "$TMP_FILE" /tmp/bt_scan.log
+        exit 1
+    fi
+    
     grep "Device" /tmp/bt_scan.log | grep -v "not available" | nl
     echo ""
     
-    read -p "Enter the number of your speaker: " SELECTION
+    read -p "Enter the number of your speaker (1-$DEVICE_COUNT): " SELECTION
     echo ""
+    
+    # Validate selection
+    if ! [[ "$SELECTION" =~ ^[0-9]+$ ]] || [ "$SELECTION" -lt 1 ] || [ "$SELECTION" -gt "$DEVICE_COUNT" ]; then
+        print_error "Invalid selection. Please enter a number between 1 and $DEVICE_COUNT"
+        rm -f "$TMP_FILE" /tmp/bt_scan.log
+        exit 1
+    fi
     
     # Get MAC address
     SPEAKER_MAC=$(grep "Device" /tmp/bt_scan.log | grep -v "not available" | sed -n "${SELECTION}p" | awk '{print $2}')
     
     if [ -z "$SPEAKER_MAC" ]; then
-        print_error "Invalid selection"
+        print_error "Could not get MAC address"
         rm -f "$TMP_FILE" /tmp/bt_scan.log
         exit 1
     fi
