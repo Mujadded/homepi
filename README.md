@@ -59,8 +59,20 @@ The application uses the following default settings:
 
 ### Start the Application
 
+**Option 1: Using the start script (recommended)**
 ```bash
-python3 app.py
+bash start.sh
+```
+
+**Option 2: Using virtual environment**
+```bash
+source venv/bin/activate
+python app.py
+```
+
+**Option 3: Direct command**
+```bash
+./venv/bin/python app.py
 ```
 
 The server will start on `http://0.0.0.0:5000`

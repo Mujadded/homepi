@@ -26,16 +26,21 @@ echo "Step 2: Installing system dependencies..."
 sudo apt-get install -y python3-pip python3-dev python3-pygame ffmpeg
 
 echo ""
-echo "Step 3: Installing Python dependencies..."
-pip3 install -r requirements.txt
+echo "Step 3: Creating Python virtual environment..."
+python3 -m venv venv
 
 echo ""
-echo "Step 4: Creating necessary directories..."
+echo "Step 4: Installing Python dependencies in virtual environment..."
+./venv/bin/pip install --upgrade pip
+./venv/bin/pip install -r requirements.txt
+
+echo ""
+echo "Step 5: Creating necessary directories..."
 mkdir -p songs
 mkdir -p static
 
 echo ""
-echo "Step 5: Setting permissions..."
+echo "Step 6: Setting permissions..."
 chmod +x app.py
 
 echo ""
@@ -44,7 +49,11 @@ echo "  Installation Complete!"
 echo "======================================"
 echo ""
 echo "To start the application, run:"
-echo "  python3 app.py"
+echo "  ./venv/bin/python app.py"
+echo ""
+echo "Or activate the virtual environment first:"
+echo "  source venv/bin/activate"
+echo "  python app.py"
 echo ""
 echo "Then open your browser and go to:"
 echo "  http://localhost:5000"

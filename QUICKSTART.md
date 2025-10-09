@@ -26,8 +26,21 @@ This will:
 - Set permissions
 
 ### Step 3: Start the Application
+
+**Option 1: Using the start script (easiest)**
 ```bash
-python3 app.py
+bash start.sh
+```
+
+**Option 2: Using virtual environment directly**
+```bash
+source venv/bin/activate
+python app.py
+```
+
+**Option 3: Direct command**
+```bash
+./venv/bin/python app.py
 ```
 
 You should see:

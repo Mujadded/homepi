@@ -7,7 +7,7 @@ Type=simple
 User=pi
 WorkingDirectory=/home/pi/homepi
 Environment="DISPLAY=:0"
-ExecStart=/usr/bin/python3 /home/pi/homepi/app.py
+ExecStart=/home/pi/homepi/venv/bin/python /home/pi/homepi/app.py
 Restart=always
 RestartSec=10
 
