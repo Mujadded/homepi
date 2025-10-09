@@ -850,6 +850,54 @@
             </div>
 
             <div class="form-group">
+                <label for="scheduleVolume">Volume for this schedule (%):</label>
+                <div style="display: flex; align-items: center; gap: 12px;">
+                    <input type="range" id="scheduleVolume" min="0" max="100" value="70" style="flex: 1;">
+                    <span id="scheduleVolumeValue" style="min-width: 45px; font-weight: 700; color: var(--primary);">70%</span>
+                </div>
+                <div style="margin-top: 8px; font-size: 0.9em; color: var(--gray-600);">
+                    Leave at 70% to use default volume, or set custom volume for this schedule
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label>Days to play:</label>
+                <div style="display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px;">
+                    <label style="display: flex; flex-direction: column; align-items: center; padding: 8px; background: var(--gray-50); border-radius: 8px; cursor: pointer; border: 2px solid var(--gray-200);">
+                        <input type="checkbox" class="day-checkbox" value="mon" style="margin-bottom: 4px;">
+                        <span style="font-size: 0.85em; font-weight: 600;">Mon</span>
+                    </label>
+                    <label style="display: flex; flex-direction: column; align-items: center; padding: 8px; background: var(--gray-50); border-radius: 8px; cursor: pointer; border: 2px solid var(--gray-200);">
+                        <input type="checkbox" class="day-checkbox" value="tue" style="margin-bottom: 4px;">
+                        <span style="font-size: 0.85em; font-weight: 600;">Tue</span>
+                    </label>
+                    <label style="display: flex; flex-direction: column; align-items: center; padding: 8px; background: var(--gray-50); border-radius: 8px; cursor: pointer; border: 2px solid var(--gray-200);">
+                        <input type="checkbox" class="day-checkbox" value="wed" style="margin-bottom: 4px;">
+                        <span style="font-size: 0.85em; font-weight: 600;">Wed</span>
+                    </label>
+                    <label style="display: flex; flex-direction: column; align-items: center; padding: 8px; background: var(--gray-50); border-radius: 8px; cursor: pointer; border: 2px solid var(--gray-200);">
+                        <input type="checkbox" class="day-checkbox" value="thu" style="margin-bottom: 4px;">
+                        <span style="font-size: 0.85em; font-weight: 600;">Thu</span>
+                    </label>
+                    <label style="display: flex; flex-direction: column; align-items: center; padding: 8px; background: var(--gray-50); border-radius: 8px; cursor: pointer; border: 2px solid var(--gray-200);">
+                        <input type="checkbox" class="day-checkbox" value="fri" style="margin-bottom: 4px;">
+                        <span style="font-size: 0.85em; font-weight: 600;">Fri</span>
+                    </label>
+                    <label style="display: flex; flex-direction: column; align-items: center; padding: 8px; background: var(--gray-50); border-radius: 8px; cursor: pointer; border: 2px solid var(--gray-200);">
+                        <input type="checkbox" class="day-checkbox" value="sat" style="margin-bottom: 4px;">
+                        <span style="font-size: 0.85em; font-weight: 600;">Sat</span>
+                    </label>
+                    <label style="display: flex; flex-direction: column; align-items: center; padding: 8px; background: var(--gray-50); border-radius: 8px; cursor: pointer; border: 2px solid var(--gray-200);">
+                        <input type="checkbox" class="day-checkbox" value="sun" style="margin-bottom: 4px;">
+                        <span style="font-size: 0.85em; font-weight: 600;">Sun</span>
+                    </label>
+                </div>
+                <div style="margin-top: 8px; font-size: 0.9em; color: var(--gray-600);">
+                    Select specific days, or leave all unchecked to play every day
+                </div>
+            </div>
+
+            <div class="form-group">
                 <div class="checkbox-group">
                     <input type="checkbox" id="scheduleRepeat">
                     <label for="scheduleRepeat">Repeat continuously when time is reached</label>
@@ -893,6 +941,12 @@
             
             // Update current time every second
             setInterval(updateCurrentTime, 1000);
+            
+            // Schedule volume slider
+            document.getElementById('scheduleVolume').addEventListener('input', function(e) {
+                const volume = e.target.value;
+                document.getElementById('scheduleVolumeValue').textContent = volume + '%';
+            });
         });
 
         // Update current time display
@@ -1038,6 +1092,9 @@
                                             <div style="font-size: 0.9em; color: var(--gray-600);">
                                                 🎵 ${schedule.song}
                                                 ${schedule.repeat ? ' • 🔁 Repeat' : ''}
+                                                ${schedule.volume ? ` • 🔊 ${schedule.volume}%` : ''}
+                                                <br>
+                                                📅 ${schedule.days_of_week && schedule.days_of_week.length > 0 ? schedule.days_of_week.map(d => d.toUpperCase()).join(', ') : 'Every day'}
                                             </div>
                                         </div>
                                         <div style="display: flex; gap: 8px;">
@@ -1168,6 +1225,8 @@
                         <div class="song-details">
                             <span class="schedule-time">${formatTime(schedule.hour, schedule.minute)}</span> • 
                             🎵 ${schedule.song}
+                            ${schedule.volume ? ` • 🔊 ${schedule.volume}%` : ''}
+                            ${schedule.days_of_week && schedule.days_of_week.length > 0 ? ` • 📅 ${schedule.days_of_week.map(d => d.toUpperCase()).join(', ')}` : ' • 📅 Every day'}
                         </div>
                     </div>
                     <div class="schedule-actions">
@@ -1337,8 +1396,14 @@
             document.getElementById('scheduleSong').value = '';
             document.getElementById('scheduleHour').value = '8';
             document.getElementById('scheduleMinute').value = '0';
+            document.getElementById('scheduleVolume').value = '70';
+            document.getElementById('scheduleVolumeValue').textContent = '70%';
             document.getElementById('scheduleRepeat').checked = false;
             document.getElementById('scheduleEnabled').checked = true;
+            
+            // Uncheck all days (means every day)
+            document.querySelectorAll('.day-checkbox').forEach(cb => cb.checked = false);
+            
             document.getElementById('scheduleModal').classList.add('active');
             document.getElementById('scheduleAlert').innerHTML = '';
         }
@@ -1353,8 +1418,16 @@
             document.getElementById('scheduleSong').value = schedule.song;
             document.getElementById('scheduleHour').value = schedule.hour;
             document.getElementById('scheduleMinute').value = schedule.minute;
+            document.getElementById('scheduleVolume').value = schedule.volume || 70;
+            document.getElementById('scheduleVolumeValue').textContent = `${schedule.volume || 70}%`;
             document.getElementById('scheduleRepeat').checked = schedule.repeat;
             document.getElementById('scheduleEnabled').checked = schedule.enabled;
+            
+            // Set days checkboxes
+            document.querySelectorAll('.day-checkbox').forEach(cb => {
+                cb.checked = schedule.days_of_week && schedule.days_of_week.includes(cb.value);
+            });
+            
             document.getElementById('scheduleModal').classList.add('active');
             document.getElementById('scheduleAlert').innerHTML = '';
         }
@@ -1364,15 +1437,31 @@
             const song = document.getElementById('scheduleSong').value;
             const hour = parseInt(document.getElementById('scheduleHour').value);
             const minute = parseInt(document.getElementById('scheduleMinute').value);
+            const volume = parseInt(document.getElementById('scheduleVolume').value);
             const repeat = document.getElementById('scheduleRepeat').checked;
             const enabled = document.getElementById('scheduleEnabled').checked;
+            
+            // Get selected days
+            const selectedDays = [];
+            document.querySelectorAll('.day-checkbox:checked').forEach(cb => {
+                selectedDays.push(cb.value);
+            });
 
             if (!name || !song) {
                 showAlert('scheduleAlert', 'Please fill in all fields', 'error');
                 return;
             }
 
-            const scheduleData = { name, song, hour, minute, repeat, enabled };
+            const scheduleData = { 
+                name, 
+                song, 
+                hour, 
+                minute, 
+                repeat, 
+                enabled,
+                volume: volume,
+                days_of_week: selectedDays.length > 0 ? selectedDays : null
+            };
 
             try {
                 if (currentEditingSchedule) {

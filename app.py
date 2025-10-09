@@ -46,9 +46,9 @@ def save_schedules(schedules):
         json.dump(schedules, f, indent=2)
 
 
-def play_song(song_path, repeat=False):
+def play_song(song_path, repeat=False, volume=None):
     """Play a song using pygame mixer"""
-    global current_playing
+    global current_playing, current_volume
     with playback_lock:
         try:
             if pygame.mixer.music.get_busy():
@@ -56,18 +56,22 @@ def play_song(song_path, repeat=False):
             
             full_path = os.path.join(SONGS_DIR, song_path)
             if os.path.exists(full_path):
+                # Set volume if specified, otherwise keep current
+                if volume is not None:
+                    pygame.mixer.music.set_volume(volume / 100.0)
+                
                 pygame.mixer.music.load(full_path)
                 loops = -1 if repeat else 0  # -1 means infinite loop
                 pygame.mixer.music.play(loops=loops)
                 current_playing = song_path
-                print(f"Playing: {song_path} (repeat: {repeat})")
+                print(f"Playing: {song_path} (repeat: {repeat}, volume: {volume if volume else 'default'})")
             else:
                 print(f"Song not found: {full_path}")
         except Exception as e:
             print(f"Error playing song: {e}")
 
 
-def schedule_job(schedule_id, hour, minute, song, repeat):
+def schedule_job(schedule_id, hour, minute, song, repeat, volume=None, days_of_week=None):
     """Schedule a song to play at specific time"""
     job_id = f"schedule_{schedule_id}"
     
@@ -75,13 +79,18 @@ def schedule_job(schedule_id, hour, minute, song, repeat):
     if scheduler.get_job(job_id):
         scheduler.remove_job(job_id)
     
-    # Add new job
-    trigger = CronTrigger(hour=hour, minute=minute)
+    # Add new job with day of week filter if specified
+    trigger_kwargs = {'hour': hour, 'minute': minute}
+    if days_of_week:
+        # days_of_week is a list like ['mon', 'wed', 'fri']
+        trigger_kwargs['day_of_week'] = ','.join(days_of_week)
+    
+    trigger = CronTrigger(**trigger_kwargs)
     scheduler.add_job(
         play_song,
         trigger=trigger,
         id=job_id,
-        args=[song, repeat],
+        args=[song, repeat, volume],
         replace_existing=True
     )
 
@@ -96,7 +105,9 @@ def reload_all_schedules():
                 schedule['hour'],
                 schedule['minute'],
                 schedule['song'],
-                schedule.get('repeat', False)
+                schedule.get('repeat', False),
+                schedule.get('volume'),
+                schedule.get('days_of_week')
             )
 
 
@@ -220,7 +231,9 @@ def create_schedule():
         'minute': data['minute'],
         'song': data['song'],
         'repeat': data.get('repeat', False),
-        'enabled': data.get('enabled', True)
+        'enabled': data.get('enabled', True),
+        'volume': data.get('volume'),  # Per-schedule volume
+        'days_of_week': data.get('days_of_week')  # e.g., ['mon', 'wed', 'fri']
     }
     
     schedules.append(new_schedule)
@@ -229,7 +242,8 @@ def create_schedule():
     # Schedule the job
     if new_schedule['enabled']:
         schedule_job(new_id, new_schedule['hour'], new_schedule['minute'], 
-                    new_schedule['song'], new_schedule['repeat'])
+                    new_schedule['song'], new_schedule['repeat'],
+                    new_schedule.get('volume'), new_schedule.get('days_of_week'))
     
     return jsonify(new_schedule)
 
@@ -248,7 +262,8 @@ def update_schedule(schedule_id):
             # Update the scheduled job
             if schedules[i]['enabled']:
                 schedule_job(schedule_id, schedules[i]['hour'], schedules[i]['minute'],
-                           schedules[i]['song'], schedules[i].get('repeat', False))
+                           schedules[i]['song'], schedules[i].get('repeat', False),
+                           schedules[i].get('volume'), schedules[i].get('days_of_week'))
             else:
                 job_id = f"schedule_{schedule_id}"
                 if scheduler.get_job(job_id):
