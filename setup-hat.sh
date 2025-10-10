@@ -52,25 +52,47 @@ else
     echo "⚠️  i2c-tools not installed properly"
 fi
 
-# Install Python packages using docker-compose (if available)
+# Install Python packages
 echo "📚 Installing Python packages..."
+
+# Check if we're using docker-compose
 if [ -f "docker-compose.yml" ]; then
     echo "Using docker-compose to install packages..."
     docker-compose exec homepi pip install adafruit-circuitpython-ssd1306 adafruit-circuitpython-bme280 Pillow RPi.GPIO
+    echo "✓ Packages installed via docker-compose"
+# Check if virtual environment exists
+elif [ -d "venv" ]; then
+    echo "Using virtual environment (venv)..."
+    ./venv/bin/pip install adafruit-circuitpython-ssd1306 adafruit-circuitpython-bme280 Pillow RPi.GPIO
+    echo "✓ Packages installed in venv"
+# Otherwise create a virtual environment
 else
-    echo "Using pip to install packages..."
-    pip3 install adafruit-circuitpython-ssd1306 adafruit-circuitpython-bme280 Pillow RPi.GPIO
+    echo "Creating virtual environment..."
+    python3 -m venv venv
+    echo "Installing packages in virtual environment..."
+    ./venv/bin/pip install --upgrade pip
+    ./venv/bin/pip install -r requirements.txt
+    echo "✓ Virtual environment created and packages installed"
+fi
+
+# Determine which python to use for testing
+if [ -d "venv" ]; then
+    PYTHON_CMD="./venv/bin/python3"
+elif [ -f "docker-compose.yml" ]; then
+    PYTHON_CMD="docker-compose exec homepi python3"
+else
+    PYTHON_CMD="python3"
 fi
 
 # Test sensor connection
 echo ""
 echo "🧪 Testing sensor connection..."
-python3 sensor_manager.py || echo "⚠️  Sensor test failed - check wiring and I2C address in config.json"
+$PYTHON_CMD sensor_manager.py || echo "⚠️  Sensor test failed - check wiring and I2C address in config.json"
 
 # Test display connection
 echo ""
 echo "🖥️  Testing display connection..."
-python3 display_manager.py || echo "⚠️  Display test failed - check wiring and I2C address in config.json"
+$PYTHON_CMD display_manager.py || echo "⚠️  Display test failed - check wiring and I2C address in config.json"
 
 echo ""
 echo "========================================="
