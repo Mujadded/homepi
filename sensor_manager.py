@@ -43,7 +43,7 @@ def load_config():
 
 
 def init_sensor():
-    """Initialize the environmental sensor (BME280 or DHT22)"""
+    """Initialize the environmental sensor (BME280, DHT22, or Sense HAT)"""
     global sensor, sensor_type, sensor_data
     
     sensor_config = load_config()
@@ -55,7 +55,16 @@ def init_sensor():
     sensor_type = sensor_config.get('type', 'bme280')
     
     try:
-        if sensor_type == 'bme280':
+        if sensor_type == 'sense_hat':
+            # Try to initialize Sense HAT
+            from sense_hat import SenseHat
+            
+            sensor = SenseHat()
+            print("✓ Sense HAT initialized")
+            sensor_data['sensor_available'] = True
+            return True
+            
+        elif sensor_type == 'bme280':
             # Try to initialize BME280
             import board
             import adafruit_bme280.advanced as adafruit_bme280
@@ -109,7 +118,9 @@ def read_temperature():
         return None
     
     try:
-        if sensor_type == 'bme280':
+        if sensor_type == 'sense_hat':
+            temp = sensor.get_temperature()
+        elif sensor_type == 'bme280':
             temp = sensor.temperature
         elif sensor_type == 'dht22':
             temp = sensor.temperature
@@ -131,7 +142,9 @@ def read_humidity():
         return None
     
     try:
-        if sensor_type == 'bme280':
+        if sensor_type == 'sense_hat':
+            humidity = sensor.get_humidity()
+        elif sensor_type == 'bme280':
             humidity = sensor.humidity
         elif sensor_type == 'dht22':
             humidity = sensor.humidity
@@ -146,14 +159,20 @@ def read_humidity():
 
 
 def read_pressure():
-    """Read atmospheric pressure from BME280 sensor in hPa"""
+    """Read atmospheric pressure from sensor in hPa"""
     global sensor, sensor_type, sensor_data
     
-    if sensor is None or sensor_type != 'bme280':
+    if sensor is None:
         return None
     
     try:
-        pressure = sensor.pressure
+        if sensor_type == 'sense_hat':
+            pressure = sensor.get_pressure()
+        elif sensor_type == 'bme280':
+            pressure = sensor.pressure
+        else:
+            return None
+        
         sensor_data['pressure'] = round(pressure, 1)
         return sensor_data['pressure']
     except Exception as e:

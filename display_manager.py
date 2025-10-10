@@ -49,7 +49,7 @@ def load_config():
 
 
 def init_display():
-    """Initialize the SSD1306 OLED display"""
+    """Initialize the display (SSD1306 OLED or Sense HAT LED matrix)"""
     global display, display_enabled, display_config
     
     display_config = load_config()
@@ -58,36 +58,51 @@ def init_display():
         print("Display disabled in config")
         return False
     
+    display_type = display_config.get('type', 'ssd1306')
+    
     try:
-        import board
-        import adafruit_ssd1306
-        
-        # Initialize I2C
-        i2c = board.I2C()
-        
-        # Get display dimensions
-        width = display_config.get('width', 128)
-        height = display_config.get('height', 64)
-        i2c_addr = int(display_config.get('i2c_address', '0x3C'), 16)
-        
-        # Initialize display
-        display = adafruit_ssd1306.SSD1306_I2C(width, height, i2c, addr=i2c_addr)
-        
-        # Clear display
-        display.fill(0)
-        display.show()
-        
-        print(f"✓ SSD1306 display initialized ({width}x{height} at {display_config.get('i2c_address')})")
-        display_enabled = True
-        return True
+        if display_type == 'sense_hat':
+            # Initialize Sense HAT LED matrix
+            from sense_hat import SenseHat
+            
+            display = SenseHat()
+            display.low_light = True  # Reduce brightness
+            display.clear()
+            
+            print("✓ Sense HAT LED matrix initialized (8x8)")
+            display_enabled = True
+            return True
+            
+        elif display_type == 'ssd1306':
+            import board
+            import adafruit_ssd1306
+            
+            # Initialize I2C
+            i2c = board.I2C()
+            
+            # Get display dimensions
+            width = display_config.get('width', 128)
+            height = display_config.get('height', 64)
+            i2c_addr = int(display_config.get('i2c_address', '0x3C'), 16)
+            
+            # Initialize display
+            display = adafruit_ssd1306.SSD1306_I2C(width, height, i2c, addr=i2c_addr)
+            
+            # Clear display
+            display.fill(0)
+            display.show()
+            
+            print(f"✓ SSD1306 display initialized ({width}x{height} at {display_config.get('i2c_address')})")
+            display_enabled = True
+            return True
         
     except ImportError as e:
         print(f"⚠ Display libraries not installed: {e}")
-        print("  Run: pip install adafruit-circuitpython-ssd1306 Pillow")
+        print("  For Sense HAT: pip install sense-hat")
+        print("  For SSD1306: pip install adafruit-circuitpython-ssd1306 Pillow")
         return False
     except Exception as e:
         print(f"⚠ Could not initialize display: {e}")
-        print("  Make sure I2C is enabled: sudo raspi-config")
         return False
 
 
@@ -288,6 +303,52 @@ def render_combined_screen(draw, width, height):
             draw.text((2, y_pos), f"Env: {temp:.1f}°C {humidity:.0f}%", font=font_tiny, fill=255)
 
 
+def render_sense_hat_countdown():
+    """Render countdown on Sense HAT 8x8 LED matrix"""
+    global display
+    
+    next_schedule, countdown = get_next_schedule()
+    
+    if next_schedule:
+        # Show clock icon in blue
+        display.show_message("Next", scroll_speed=0.05, text_colour=[0, 100, 255])
+    else:
+        # Show idle icon
+        display.clear()
+
+
+def render_sense_hat_playing():
+    """Render playing status on Sense HAT"""
+    global display
+    
+    if playback_state.get('playing'):
+        # Show music note icon or scrolling song name
+        display.show_message("Playing", scroll_speed=0.05, text_colour=[0, 255, 0])
+    else:
+        display.clear()
+
+
+def render_sense_hat_sensor():
+    """Render sensor data on Sense HAT"""
+    global display, sensor_data_ref
+    
+    if sensor_data_ref and sensor_data_ref.get('sensor_available'):
+        temp = sensor_data_ref.get('temperature')
+        if temp:
+            # Show temperature value
+            display.show_message(f"{temp:.0f}C", scroll_speed=0.05, text_colour=[255, 100, 0])
+    else:
+        display.clear()
+
+
+def render_sense_hat_idle():
+    """Render idle screen on Sense HAT"""
+    global display
+    
+    # Show a simple pattern or clear
+    display.clear()
+
+
 def update_display():
     """Update the display with current screen"""
     global display, current_screen, display_config
@@ -295,26 +356,40 @@ def update_display():
     if not display or not display_enabled:
         return
     
+    display_type = display_config.get('type', 'ssd1306')
+    
     try:
-        # Create image
-        width = display_config.get('width', 128)
-        height = display_config.get('height', 64)
-        image = Image.new('1', (width, height))
-        draw = ImageDraw.Draw(image)
+        if display_type == 'sense_hat':
+            # Sense HAT LED matrix (8x8) - simple visualizations
+            if current_screen == 0:
+                render_sense_hat_countdown()
+            elif current_screen == 1:
+                render_sense_hat_playing()
+            elif current_screen == 2:
+                render_sense_hat_sensor()
+            else:
+                render_sense_hat_idle()
         
-        # Render current screen (rotate through 4 screens)
-        if current_screen == 0:
-            render_countdown_screen(draw, width, height)
-        elif current_screen == 1:
-            render_playing_screen(draw, width, height)
-        elif current_screen == 2:
-            render_sensor_screen(draw, width, height)
-        else:
-            render_combined_screen(draw, width, height)
-        
-        # Display image
-        display.image(image)
-        display.show()
+        elif display_type == 'ssd1306':
+            # Create image for OLED
+            width = display_config.get('width', 128)
+            height = display_config.get('height', 64)
+            image = Image.new('1', (width, height))
+            draw = ImageDraw.Draw(image)
+            
+            # Render current screen (rotate through 4 screens)
+            if current_screen == 0:
+                render_countdown_screen(draw, width, height)
+            elif current_screen == 1:
+                render_playing_screen(draw, width, height)
+            elif current_screen == 2:
+                render_sensor_screen(draw, width, height)
+            else:
+                render_combined_screen(draw, width, height)
+            
+            # Display image
+            display.image(image)
+            display.show()
     except Exception as e:
         print(f"Display update error: {e}")
 

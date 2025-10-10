@@ -58,12 +58,12 @@ echo "📚 Installing Python packages..."
 # Check if we're using docker-compose
 if [ -f "docker-compose.yml" ]; then
     echo "Using docker-compose to install packages..."
-    docker-compose exec homepi pip install adafruit-circuitpython-ssd1306 adafruit-circuitpython-bme280 Pillow RPi.GPIO
+    docker-compose exec homepi pip install sense-hat adafruit-circuitpython-ssd1306 adafruit-circuitpython-bme280 Pillow RPi.GPIO
     echo "✓ Packages installed via docker-compose"
 # Check if virtual environment exists
 elif [ -d "venv" ]; then
     echo "Using virtual environment (venv)..."
-    ./venv/bin/pip install adafruit-circuitpython-ssd1306 adafruit-circuitpython-bme280 Pillow RPi.GPIO
+    ./venv/bin/pip install sense-hat adafruit-circuitpython-ssd1306 adafruit-circuitpython-bme280 Pillow RPi.GPIO
     echo "✓ Packages installed in venv"
 # Otherwise create a virtual environment
 else

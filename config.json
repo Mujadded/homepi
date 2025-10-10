@@ -1,16 +1,12 @@
 {
     "display": {
         "enabled": true,
-        "type": "ssd1306",
-        "i2c_address": "0x3C",
-        "width": 128,
-        "height": 64,
+        "type": "sense_hat",
         "rotation_interval": 5
     },
     "sensor": {
         "enabled": true,
-        "type": "bme280",
-        "i2c_address": "0x76",
+        "type": "sense_hat",
         "read_interval": 30
     }
 }
