@@ -424,13 +424,22 @@ def download_youtube():
             expected_mp3 = os.path.splitext(os.path.basename(expected_filename))[0] + '.mp3'
             expected_mp3_path = os.path.join(SONGS_DIR, expected_mp3)
             
-            # Check if file already exists
+            # Check if MP3 already exists
             if os.path.exists(expected_mp3_path):
                 return jsonify({
                     'message': 'Song already exists in library',
                     'filename': expected_mp3,
                     'already_exists': True
                 })
+            
+            # Clean up any incomplete downloads (mp4, webm, etc.)
+            # This happens if previous download timed out
+            base_filename = os.path.splitext(os.path.basename(expected_filename))[0]
+            for ext in ['.mp4', '.webm', '.m4a', '.part', '.ytdl', '.temp']:
+                incomplete_file = os.path.join(SONGS_DIR, base_filename + ext)
+                if os.path.exists(incomplete_file):
+                    print(f"Removing incomplete download: {incomplete_file}")
+                    os.remove(incomplete_file)
             
             # Now download the single video
             print(f"Starting download: {info.get('title', 'Unknown')}")
