@@ -661,7 +661,12 @@ def get_status():
     """Get current playback status with progress"""
     global current_playing, current_volume, current_playing_start_time, current_song_duration
     
-    is_playing = pygame.mixer.music.get_busy()
+    try:
+        is_playing = pygame.mixer.music.get_busy()
+    except pygame.error:
+        # Mixer not initialized - treat as not playing
+        is_playing = False
+    
     position = 0
     duration = 0
     

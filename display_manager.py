@@ -305,105 +305,125 @@ def render_combined_screen(draw, width, height):
 
 
 def render_sense_hat_countdown():
-    """Render countdown on Sense HAT 8x8 LED matrix with animation"""
+    """Render countdown on Sense HAT with visual hourglass animation"""
     global display
     
     next_schedule, countdown = get_next_schedule()
+    display.clear()
     
     if next_schedule and countdown:
-        # Parse countdown (format: "HH:MM")
+        # Visual hourglass filling up over time
+        import time
+        
+        # Parse countdown
         parts = countdown.split(':')
-        if len(parts) == 2:
+        if len(parts) >= 2:
             hours = int(parts[0])
             minutes = int(parts[1])
+            total_minutes = hours * 60 + minutes
             
-            # Animated countdown with pulsing border
-            display.clear()
-            
-            # Pulsing border effect
-            import time
-            pulse = int((time.time() % 2) * 127) + 128  # Pulse between 128-255
-            
-            # Draw border
-            for i in range(8):
-                display.set_pixel(i, 0, 0, 0, pulse)  # Top
-                display.set_pixel(i, 7, 0, 0, pulse)  # Bottom
-                display.set_pixel(0, i, 0, 0, pulse)  # Left
-                display.set_pixel(7, i, 0, 0, pulse)  # Right
-            
-            # Show time in center as scrolling text (slower)
-            if hours > 0:
-                display.show_message(f"{hours}h{minutes}m", scroll_speed=0.1, text_colour=[100, 200, 255])
+            # Calculate fill level (0-8 pixels)
+            if total_minutes > 60:
+                fill_level = 2  # Many hours = mostly empty
+            elif total_minutes > 30:
+                fill_level = 4  # Half hour
+            elif total_minutes > 10:
+                fill_level = 6  # Close
             else:
-                display.show_message(f"{minutes}min", scroll_speed=0.1, text_colour=[100, 255, 150])
+                fill_level = 8  # Very close!
+            
+            # Draw hourglass shape
+            hourglass = [
+                [1,1,1,1,1,1,1,1],  # Top
+                [0,1,1,1,1,1,1,0],
+                [0,0,1,1,1,1,0,0],
+                [0,0,0,1,1,0,0,0],  # Narrow middle
+                [0,0,1,1,1,1,0,0],
+                [0,1,1,1,1,1,1,0],
+                [1,1,1,1,1,1,1,1],  # Bottom
+                [1,1,1,1,1,1,1,1]
+            ]
+            
+            # Color based on urgency
+            if total_minutes < 10:
+                color = (255, 0, 0)  # Red - urgent!
+            elif total_minutes < 30:
+                color = (255, 200, 0)  # Orange
+            else:
+                color = (0, 200, 255)  # Blue - plenty of time
+            
+            # Draw hourglass and fill from bottom
+            for y in range(8):
+                for x in range(8):
+                    if hourglass[y][x]:
+                        # Fill from bottom up
+                        if y >= (8 - fill_level):
+                            display.set_pixel(x, y, *color)
+                        else:
+                            # Empty part - dim outline
+                            display.set_pixel(x, y, color[0]//4, color[1]//4, color[2]//4)
     else:
-        # Animated clock with moving hands
-        import time
-        display.clear()
-        
-        # Clock circle
-        clock_pixels = [(2,1), (3,1), (4,1), (5,1),  # Top
-                        (1,2), (6,2), (1,3), (6,3), (1,4), (6,4), (1,5), (6,5),  # Sides
-                        (2,6), (3,6), (4,6), (5,6)]  # Bottom
-        
-        for x, y in clock_pixels:
-            display.set_pixel(x, y, 80, 80, 120)
-        
-        # Animated second hand (rotating)
-        second = int(time.time() % 8)
-        hand_positions = [(4,2), (5,2), (5,3), (5,4), (4,5), (3,5), (2,4), (2,3)]
-        hx, hy = hand_positions[second]
-        display.set_pixel(4, 4, 255, 200, 0)  # Center
-        display.set_pixel(hx, hy, 255, 100, 0)  # Hand tip
+        # Checkmark - no schedules today
+        checkmark = [
+            [0,0,0,0,0,0,0,0],
+            [0,0,0,0,0,0,1,0],
+            [0,0,0,0,0,1,1,0],
+            [0,0,0,0,1,1,0,0],
+            [1,0,0,1,1,0,0,0],
+            [1,1,1,1,0,0,0,0],
+            [0,1,1,0,0,0,0,0],
+            [0,0,0,0,0,0,0,0]
+        ]
+        for y in range(8):
+            for x in range(8):
+                if checkmark[y][x]:
+                    display.set_pixel(x, y, 0, 255, 0)
 
 
 def render_sense_hat_playing():
-    """Render playing status on Sense HAT with audio visualization"""
+    """Render playing status on Sense HAT with clean visual icons"""
     global display
+    display.clear()
     
     if playback_state.get('playing'):
+        # Pulsing music note
         import time
-        import random
+        pulse = int(abs(math.sin(time.time() * 3)) * 255)
         
-        # Animated audio bars (simulated spectrum analyzer)
-        display.clear()
+        # Music note icon
+        music_note = [
+            [0,0,0,0,0,1,1,0],
+            [0,0,0,0,0,1,1,0],
+            [0,0,0,0,0,1,1,0],
+            [0,0,0,0,0,1,1,0],
+            [0,1,1,0,0,1,1,0],
+            [1,1,1,1,1,1,1,1],
+            [1,1,1,1,1,1,1,1],
+            [0,1,1,0,0,1,1,0]
+        ]
         
-        # Create 8 columns of bars that bounce to simulate audio
-        beat = time.time() * 2  # Animation speed
-        
-        for x in range(8):
-            # Each column has different height based on time and position
-            height = int(4 + 3 * abs(math.sin(beat + x * 0.5)))
-            
-            for y in range(8):
-                if y >= (8 - height):
-                    # Color gradient from bottom (green) to top (red)
-                    if y >= 6:
-                        display.set_pixel(x, y, 0, 255, 0)  # Green bottom
-                    elif y >= 4:
-                        display.set_pixel(x, y, 255, 255, 0)  # Yellow middle
-                    else:
-                        display.set_pixel(x, y, 255, 0, 0)  # Red top
+        for y in range(8):
+            for x in range(8):
+                if music_note[y][x]:
+                    # Pulsing green
+                    display.set_pixel(x, y, 0, pulse, 0)
     else:
-        # Idle - show rainbow wave
-        import time
-        display.clear()
-        t = time.time() * 0.5
+        # Pause symbol
+        pause_icon = [
+            [0,0,0,0,0,0,0,0],
+            [0,1,1,0,0,1,1,0],
+            [0,1,1,0,0,1,1,0],
+            [0,1,1,0,0,1,1,0],
+            [0,1,1,0,0,1,1,0],
+            [0,1,1,0,0,1,1,0],
+            [0,1,1,0,0,1,1,0],
+            [0,0,0,0,0,0,0,0]
+        ]
         
-        for x in range(8):
-            for y in range(8):
-                # Create rainbow wave effect
-                hue = (x + y + t * 10) % 255
-                # Convert HSV to RGB (simplified)
-                if hue < 85:
-                    r, g, b = 255 - hue * 3, hue * 3, 0
-                elif hue < 170:
-                    r, g, b = 0, 255 - (hue - 85) * 3, (hue - 85) * 3
-                else:
-                    r, g, b = (hue - 170) * 3, 0, 255 - (hue - 170) * 3
-                
-                # Dim the colors
-                display.set_pixel(x, y, int(r/4), int(g/4), int(b/4))
+        for y in range(8):
+            for x in range(8):
+                if pause_icon[y][x]:
+                    display.set_pixel(x, y, 100, 100, 100)
 
 
 def render_sense_hat_sensor():
@@ -452,66 +472,29 @@ def render_sense_hat_sensor():
 
 
 def render_sense_hat_idle():
-    """Render idle screen on Sense HAT - animated patterns"""
+    """Render idle screen - simple heart pulse"""
     global display
     import time
-    import random
+    display.clear()
     
-    # Cycle through different animations
-    animation_cycle = int(time.time() / 10) % 4  # Change every 10 seconds
+    # Pulsing heart
+    pulse = int(abs(math.sin(time.time() * 2)) * 255)
     
-    if animation_cycle == 0:
-        # Spiral animation
-        display.clear()
-        t = time.time() * 3
-        spiral_order = [
-            (3,3), (4,3), (4,4), (3,4), (2,4), (2,3), (2,2), (3,2), (4,2), (5,2),
-            (5,3), (5,4), (5,5), (4,5), (3,5), (2,5), (1,5), (1,4), (1,3), (1,2),
-            (1,1), (2,1), (3,1), (4,1), (5,1), (6,1), (6,2), (6,3), (6,4), (6,5),
-            (6,6), (5,6), (4,6), (3,6), (2,6)
-        ]
-        
-        for i, (x, y) in enumerate(spiral_order):
-            if (t + i) % len(spiral_order) < 8:
-                intensity = int(((8 - ((t + i) % len(spiral_order))) / 8) * 255)
-                display.set_pixel(x, y, intensity, 0, 255 - intensity)
+    heart = [
+        [0,0,1,1,0,1,1,0],
+        [0,1,1,1,1,1,1,1],
+        [0,1,1,1,1,1,1,1],
+        [0,1,1,1,1,1,1,1],
+        [0,0,1,1,1,1,1,0],
+        [0,0,0,1,1,1,0,0],
+        [0,0,0,0,1,0,0,0],
+        [0,0,0,0,0,0,0,0]
+    ]
     
-    elif animation_cycle == 1:
-        # Rain drops falling
-        display.clear()
-        t = int(time.time() * 4)
+    for y in range(8):
         for x in range(8):
-            y = (t + x * 2) % 10
-            if y < 8:
-                display.set_pixel(x, y, 0, 100, 255)
-            if y > 0 and y - 1 < 8:
-                display.set_pixel(x, y - 1, 0, 50, 150)
-    
-    elif animation_cycle == 2:
-        # Breathing effect (whole display pulses)
-        display.clear()
-        pulse = int(abs(math.sin(time.time() * 1.5)) * 200)
-        for x in range(8):
-            for y in range(8):
-                # Create radial pattern
-                dist = math.sqrt((x - 3.5)**2 + (y - 3.5)**2)
-                if dist < 4:
-                    intensity = int(pulse * (1 - dist/4))
-                    display.set_pixel(x, y, intensity, 0, intensity)
-    
-    else:
-        # Matrix-style falling code
-        display.clear()
-        t = int(time.time() * 5)
-        for x in range(8):
-            # Each column falls at different speed
-            y = (t + x) % 12
-            if y < 8:
-                display.set_pixel(x, y, 0, 255, 0)
-            if y > 0 and y - 1 < 8:
-                display.set_pixel(x, y - 1, 0, 150, 0)
-            if y > 1 and y - 2 < 8:
-                display.set_pixel(x, y - 2, 0, 50, 0)
+            if heart[y][x]:
+                display.set_pixel(x, y, pulse, 0, pulse // 2)
 
 
 def update_display():
