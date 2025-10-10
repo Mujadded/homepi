@@ -3,7 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="version" content="2.0.0">
     <title>HomePi - Music Scheduler</title>
+    <!-- Version 2.0.0 - Redesigned UI with scheduler priority -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
@@ -813,56 +815,31 @@
             <p class="subtitle">Schedule your favorite songs to play at specific times</p>
         </header>
 
-        <!-- System Health Dashboard -->
+        <!-- Schedules - Main Focus -->
         <div class="card full-width-card" style="margin-bottom: 24px;">
-            <h2>📊 System Health</h2>
-            <div class="health-grid">
-                <div class="health-metric" id="cpuMetric">
-                    <div class="health-metric-label">CPU Usage</div>
-                    <div class="health-metric-value" id="cpuValue">--</div>
+                <h2>⏰ Schedules</h2>
+                
+                <div style="margin-bottom: 20px; display: flex; gap: 10px; align-items: center;">
+                    <button onclick="openScheduleModal()">➕ Add Schedule</button>
+                    <button onclick="toggleView()" class="secondary" id="toggleViewBtn">📅 Calendar View</button>
+                    <div style="margin-left: auto; font-weight: 600; color: var(--primary);" id="currentTime"></div>
                 </div>
-                <div class="health-metric" id="memoryMetric">
-                    <div class="health-metric-label">Memory</div>
-                    <div class="health-metric-value" id="memoryValue">--</div>
+
+                <!-- List View -->
+                <div id="listView" style="display: block;">
+                    <div class="schedule-list" id="scheduleList">
+                        <div class="loading">Loading schedules...</div>
+                    </div>
                 </div>
-                <div class="health-metric" id="diskMetric">
-                    <div class="health-metric-label">Disk Space</div>
-                    <div class="health-metric-value" id="diskValue">--</div>
+
+                <!-- Calendar View -->
+                <div id="calendarView" style="display: none;">
+                    <div id="calendarSchedule"></div>
                 </div>
-                <div class="health-metric" id="tempMetric">
-                    <div class="health-metric-label">Temperature</div>
-                    <div class="health-metric-value" id="tempValue">--</div>
-                </div>
-                <div class="health-metric" id="uptimeMetric">
-                    <div class="health-metric-label">Uptime</div>
-                    <div class="health-metric-value" id="uptimeValue">--</div>
-                </div>
-                <div class="health-metric" id="bluetoothMetric">
-                    <div class="health-metric-label">Bluetooth</div>
-                    <div class="health-metric-value" id="bluetoothValue">--</div>
-                </div>
-            </div>
-            <div id="warningsContainer" style="margin-top: 20px; display: none;">
-                <h3 style="color: var(--warning); margin-bottom: 12px;">⚠️ Warnings</h3>
-                <ul class="warnings-list" id="warningsList"></ul>
-                <button onclick="reconnectBluetooth()" style="margin-top: 12px;">🔄 Reconnect Bluetooth</button>
             </div>
         </div>
 
-        <!-- Backup Management -->
-        <div class="card full-width-card" style="margin-bottom: 24px;">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-                <h2>💾 Backup Management</h2>
-                <button onclick="createBackup()">Create Backup Now</button>
-            </div>
-            <p style="color: var(--gray-600); margin-bottom: 16px;">
-                Automatic backups run daily at 3:00 AM. Backups are kept for 7 days.
-            </p>
-            <div class="backup-list" id="backupList">
-                <div class="loading">Loading backups</div>
-            </div>
-        </div>
-
+        <!-- Playback & Songs Grid -->
         <div class="main-grid">
             <!-- Playback Control -->
             <div class="card">
@@ -923,27 +900,62 @@
                     <div class="loading">Loading songs...</div>
                 </div>
             </div>
+        </div>
 
-            <!-- Schedules -->
-            <div class="card full-width-card">
-                <h2>⏰ Schedules</h2>
-                
-                <div style="margin-bottom: 20px; display: flex; gap: 10px; align-items: center;">
-                    <button onclick="openScheduleModal()">➕ Add Schedule</button>
-                    <button onclick="toggleView()" class="secondary" id="toggleViewBtn">📅 Calendar View</button>
-                    <div style="margin-left: auto; font-weight: 600; color: var(--primary);" id="currentTime"></div>
-                </div>
-
-                <!-- List View -->
-                <div id="listView" style="display: block;">
-                    <div class="schedule-list" id="scheduleList">
-                        <div class="loading">Loading schedules...</div>
+        <!-- System Status - Collapsible Section -->
+        <div class="card full-width-card" style="margin-top: 24px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; cursor: pointer;" onclick="toggleSection('systemSection')">
+                <h2>📊 System Status & Backups</h2>
+                <button type="button" class="secondary" style="pointer-events: none;" id="systemToggleBtn">▼ Show</button>
+            </div>
+            
+            <div id="systemSection" style="display: none; margin-top: 24px;">
+                <!-- System Health -->
+                <h3 style="font-size: 1.3em; margin-bottom: 16px; color: var(--primary);">System Health</h3>
+                <div class="health-grid">
+                    <div class="health-metric" id="cpuMetric">
+                        <div class="health-metric-label">CPU Usage</div>
+                        <div class="health-metric-value" id="cpuValue">--</div>
+                    </div>
+                    <div class="health-metric" id="memoryMetric">
+                        <div class="health-metric-label">Memory</div>
+                        <div class="health-metric-value" id="memoryValue">--</div>
+                    </div>
+                    <div class="health-metric" id="diskMetric">
+                        <div class="health-metric-label">Disk Space</div>
+                        <div class="health-metric-value" id="diskValue">--</div>
+                    </div>
+                    <div class="health-metric" id="tempMetric">
+                        <div class="health-metric-label">Temperature</div>
+                        <div class="health-metric-value" id="tempValue">--</div>
+                    </div>
+                    <div class="health-metric" id="uptimeMetric">
+                        <div class="health-metric-label">Uptime</div>
+                        <div class="health-metric-value" id="uptimeValue">--</div>
+                    </div>
+                    <div class="health-metric" id="bluetoothMetric">
+                        <div class="health-metric-label">Bluetooth</div>
+                        <div class="health-metric-value" id="bluetoothValue">--</div>
                     </div>
                 </div>
+                <div id="warningsContainer" style="margin-top: 20px; display: none;">
+                    <h3 style="color: var(--warning); margin-bottom: 12px;">⚠️ Warnings</h3>
+                    <ul class="warnings-list" id="warningsList"></ul>
+                    <button onclick="reconnectBluetooth()" style="margin-top: 12px;">🔄 Reconnect Bluetooth</button>
+                </div>
 
-                <!-- Calendar View -->
-                <div id="calendarView" style="display: none;">
-                    <div id="calendarSchedule"></div>
+                <!-- Backup Management -->
+                <div style="margin-top: 32px; padding-top: 24px; border-top: 2px solid var(--gray-200);">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                        <h3 style="font-size: 1.3em; color: var(--primary);">💾 Backup Management</h3>
+                        <button onclick="createBackup()">Create Backup Now</button>
+                    </div>
+                    <p style="color: var(--gray-600); margin-bottom: 16px;">
+                        Automatic backups run daily at 3:00 AM. Backups are kept for 7 days.
+                    </p>
+                    <div class="backup-list" id="backupList">
+                        <div class="loading">Loading backups</div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -1962,6 +1974,20 @@
                 loadSchedules();
             } catch (error) {
                 alert('Failed to restore backup');
+            }
+        }
+
+        // Toggle collapsible section
+        function toggleSection(sectionId) {
+            const section = document.getElementById(sectionId);
+            const btn = document.getElementById('systemToggleBtn');
+            
+            if (section.style.display === 'none') {
+                section.style.display = 'block';
+                btn.textContent = '▲ Hide';
+            } else {
+                section.style.display = 'none';
+                btn.textContent = '▼ Show';
             }
         }
 

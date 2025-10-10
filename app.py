@@ -305,7 +305,12 @@ def schedule_health_check():
 @app.route('/')
 def index():
     """Serve the main page"""
-    return send_from_directory('static', 'index.html')
+    response = send_from_directory('static', 'index.html')
+    # Add cache-busting headers to force browser refresh
+    response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+    response.headers['Pragma'] = 'no-cache'
+    response.headers['Expires'] = '0'
+    return response
 
 
 @app.route('/api/songs', methods=['GET'])
@@ -444,6 +449,7 @@ def download_youtube():
             # Now download the single video
             print(f"Starting download: {info.get('title', 'Unknown')}")
             info = ydl.extract_info(url, download=True)
+            print(f"Download finished, extracting audio...")
             filename = ydl.prepare_filename(info)
             # Change extension to mp3
             filename = os.path.splitext(os.path.basename(filename))[0] + '.mp3'
