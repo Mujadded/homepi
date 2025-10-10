@@ -1613,7 +1613,11 @@
                 if (result.error) {
                     showAlert('youtubeAlert', result.error, 'error');
                 } else {
-                    showAlert('youtubeAlert', `✅ Downloaded successfully: ${result.filename}`, 'success');
+                    if (result.already_exists) {
+                        showAlert('youtubeAlert', `ℹ️ Song already in library: ${result.filename}`, 'success');
+                    } else {
+                        showAlert('youtubeAlert', `✅ Downloaded successfully: ${result.filename}`, 'success');
+                    }
                     // Force immediate reload of songs
                     await loadSongs();
                     setTimeout(() => {

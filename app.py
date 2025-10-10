@@ -419,11 +419,26 @@ def download_youtube():
                     'error': 'Playlist detected! Please use a single video URL, not a playlist link.'
                 }), 400
             
+            # Prepare expected filename
+            expected_filename = ydl.prepare_filename(info)
+            expected_mp3 = os.path.splitext(os.path.basename(expected_filename))[0] + '.mp3'
+            expected_mp3_path = os.path.join(SONGS_DIR, expected_mp3)
+            
+            # Check if file already exists
+            if os.path.exists(expected_mp3_path):
+                return jsonify({
+                    'message': 'Song already exists in library',
+                    'filename': expected_mp3,
+                    'already_exists': True
+                })
+            
             # Now download the single video
+            print(f"Starting download: {info.get('title', 'Unknown')}")
             info = ydl.extract_info(url, download=True)
             filename = ydl.prepare_filename(info)
             # Change extension to mp3
             filename = os.path.splitext(os.path.basename(filename))[0] + '.mp3'
+            print(f"Download complete: {filename}")
             
         return jsonify({'message': 'Song downloaded successfully', 'filename': filename})
     except yt_dlp.utils.DownloadError as e:
