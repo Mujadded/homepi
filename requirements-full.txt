@@ -1,9 +1,0 @@
-# Full requirements including pygame
-# Use this only if you need to install pygame from source
-Flask==3.0.0
-Flask-CORS==4.0.0
-APScheduler==3.10.4
-pygame==2.5.2
-yt-dlp==2023.12.30
-python-dotenv==1.0.0
-

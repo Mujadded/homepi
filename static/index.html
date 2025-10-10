@@ -508,6 +508,15 @@
             }
         }
 
+        @keyframes spin {
+            from {
+                transform: rotate(0deg);
+            }
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
         @keyframes slideUp {
             from {
                 opacity: 0;
@@ -1541,54 +1550,81 @@
                 showAlert('youtubeAlert', 'Please enter a YouTube URL', 'error');
                 return;
             }
+            
+            // Check if it's a playlist URL
+            if (url.includes('list=') || url.includes('/playlist')) {
+                showAlert('youtubeAlert', '⚠️ Playlist detected! Please use a single video URL.', 'error');
+                return;
+            }
 
             const downloadBtn = event.target;
             const originalText = downloadBtn.textContent;
             downloadBtn.disabled = true;
-            downloadBtn.textContent = '⏳ Downloading...';
             
-            showAlert('youtubeAlert', 'Downloading... This may take a minute. Please wait.', 'success');
+            // Show animated loader
+            downloadBtn.innerHTML = `
+                <span style="display: inline-flex; align-items: center; gap: 8px;">
+                    <span style="
+                        display: inline-block;
+                        width: 16px;
+                        height: 16px;
+                        border: 3px solid rgba(255,255,255,0.3);
+                        border-top-color: white;
+                        border-radius: 50%;
+                        animation: spin 1s linear infinite;
+                    "></span>
+                    Downloading...
+                </span>
+            `;
+            
+            showAlert('youtubeAlert', `
+                <div style="display: flex; align-items: center; gap: 12px;">
+                    <span style="
+                        display: inline-block;
+                        width: 20px;
+                        height: 20px;
+                        border: 3px solid rgba(16, 185, 129, 0.3);
+                        border-top-color: #10b981;
+                        border-radius: 50%;
+                        animation: spin 1s linear infinite;
+                    "></span>
+                    <div>
+                        <strong>Downloading from YouTube...</strong><br>
+                        <span style="font-size: 0.9em;">This may take several minutes for large files. Please be patient.</span>
+                    </div>
+                </div>
+            `, 'success');
 
             try {
-                // Set a longer timeout for YouTube downloads
-                const controller = new AbortController();
-                const timeoutId = setTimeout(() => controller.abort(), 120000); // 2 minutes timeout
-
+                // No timeout - let it take as long as it needs
                 const response = await fetch('/api/songs/youtube', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
                     },
-                    body: JSON.stringify({ url }),
-                    signal: controller.signal
+                    body: JSON.stringify({ url })
                 });
 
-                clearTimeout(timeoutId);
                 const result = await response.json();
                 
                 downloadBtn.disabled = false;
-                downloadBtn.textContent = originalText;
+                downloadBtn.innerHTML = originalText;
                 
                 if (result.error) {
                     showAlert('youtubeAlert', result.error, 'error');
                 } else {
-                    showAlert('youtubeAlert', 'Downloaded successfully!', 'success');
+                    showAlert('youtubeAlert', `✅ Downloaded successfully: ${result.filename}`, 'success');
                     // Force immediate reload of songs
                     await loadSongs();
                     setTimeout(() => {
                         closeModal('youtubeModal');
                         document.getElementById('youtubeUrl').value = '';
-                    }, 1500);
+                    }, 2000);
                 }
             } catch (error) {
                 downloadBtn.disabled = false;
-                downloadBtn.textContent = originalText;
-                
-                if (error.name === 'AbortError') {
-                    showAlert('youtubeAlert', 'Download timed out. Please try again.', 'error');
-                } else {
-                    showAlert('youtubeAlert', 'Download failed: ' + error.message, 'error');
-                }
+                downloadBtn.innerHTML = originalText;
+                showAlert('youtubeAlert', 'Download failed: ' + error.message, 'error');
             }
         }
 

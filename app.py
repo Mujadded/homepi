@@ -378,7 +378,7 @@ def delete_song(filename):
 
 @app.route('/api/songs/youtube', methods=['POST'])
 def download_youtube():
-    """Download a song from YouTube"""
+    """Download a song from YouTube (single video only, no playlists)"""
     data = request.json
     url = data.get('url')
     
@@ -396,6 +396,8 @@ def download_youtube():
             'outtmpl': os.path.join(SONGS_DIR, '%(title)s.%(ext)s'),
             'quiet': False,
             'no_warnings': False,
+            # Prevent playlist downloads - only single video
+            'noplaylist': True,
             # Use cookies and headers to avoid 403 errors
             'nocheckcertificate': True,
             'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
@@ -403,9 +405,21 @@ def download_youtube():
             'extract_audio': True,
             # Prefer youtube music if available
             'extractor_args': {'youtube': {'player_client': ['android', 'web']}},
+            # Socket timeout for large files (30 minutes)
+            'socket_timeout': 1800,
         }
         
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            # First extract info to check if it's a playlist
+            info = ydl.extract_info(url, download=False)
+            
+            # Check if it's a playlist
+            if 'entries' in info:
+                return jsonify({
+                    'error': 'Playlist detected! Please use a single video URL, not a playlist link.'
+                }), 400
+            
+            # Now download the single video
             info = ydl.extract_info(url, download=True)
             filename = ydl.prepare_filename(info)
             # Change extension to mp3
