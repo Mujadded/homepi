@@ -864,21 +864,42 @@
                     <span id="statusText">Ready</span>
                 </div>
 
-                <div class="volume-control">
-                    <label for="volumeSlider">🔊 Volume:</label>
+                <!-- Now Playing Display with Progress -->
+                <div id="currentlyPlaying" style="margin-top: 20px; padding: 20px; background: linear-gradient(135deg, var(--primary-light) 0%, var(--secondary) 100%); border-radius: 16px; display: none; color: white; box-shadow: var(--shadow-md);">
+                    <strong style="font-size: 0.9em; opacity: 0.9;">Now Playing:</strong><br>
+                    <span id="currentSongName" style="font-size: 1.2em; font-weight: 700; margin-top: 8px; display: block;"></span>
+                    
+                    <!-- Progress Bar -->
+                    <div style="margin-top: 16px;">
+                        <div style="display: flex; justify-content: space-between; font-size: 0.85em; opacity: 0.9; margin-bottom: 8px;">
+                            <span id="currentTime">0:00</span>
+                            <span id="totalTime">0:00</span>
+                        </div>
+                        <div style="width: 100%; height: 6px; background: rgba(255,255,255,0.3); border-radius: 3px; overflow: hidden;">
+                            <div id="progressBar" style="width: 0%; height: 100%; background: white; border-radius: 3px; transition: width 0.3s ease;"></div>
+                        </div>
+                    </div>
+
+                    <!-- Playback Volume Control -->
+                    <div style="margin-top: 16px;">
+                        <label style="font-size: 0.85em; opacity: 0.9;">Playback Volume:</label>
+                        <div style="display: flex; align-items: center; gap: 12px; margin-top: 8px;">
+                            <input type="range" id="playbackVolumeSlider" min="0" max="100" value="70" style="flex: 1;">
+                            <span id="playbackVolumeValue" style="min-width: 45px; font-weight: 700;">70%</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="volume-control" style="margin-top: 20px;">
+                    <label for="volumeSlider">🔊 Default Volume:</label>
                     <input type="range" id="volumeSlider" min="0" max="100" value="70">
                     <span class="volume-value" id="volumeValue">70%</span>
                 </div>
 
-                <div class="playback-controls">
+                <div class="playback-controls" style="margin-top: 16px;">
                     <button onclick="pausePlayback()">⏸️ Pause</button>
                     <button onclick="resumePlayback()">▶️ Resume</button>
                     <button onclick="stopPlayback()" class="danger">⏹️ Stop</button>
-                </div>
-
-                <div id="currentlyPlaying" style="margin-top: 24px; padding: 20px; background: linear-gradient(135deg, var(--primary-light) 0%, var(--secondary) 100%); border-radius: 16px; display: none; color: white; box-shadow: var(--shadow-md);">
-                    <strong style="font-size: 0.9em; opacity: 0.9;">Now Playing:</strong><br>
-                    <span id="currentSongName" style="font-size: 1.2em; font-weight: 700; margin-top: 8px; display: block;"></span>
                 </div>
             </div>
 
@@ -1037,7 +1058,13 @@
             <div class="form-group">
                 <div class="checkbox-group">
                     <input type="checkbox" id="scheduleRepeat">
-                    <label for="scheduleRepeat">Repeat continuously when time is reached</label>
+                    <label for="scheduleRepeat">
+                        <strong>⚠️ Loop song continuously</strong> (plays the same song over and over until stopped)
+                    </label>
+                </div>
+                <div style="margin-top: 8px; padding: 12px; background: var(--gray-50); border-radius: 8px; border-left: 4px solid var(--primary); font-size: 0.9em;">
+                    <strong>💡 Tip:</strong> Leave this <strong>unchecked</strong> to play the song only once.<br>
+                    <strong>Check this</strong> if you want the song to loop forever (like an alarm you manually stop).
                 </div>
             </div>
 
@@ -1068,10 +1095,17 @@
             loadSystemHealth();
             loadBackups();
             
-            // Volume slider
+            // Volume sliders
             document.getElementById('volumeSlider').addEventListener('input', function(e) {
                 const volume = e.target.value;
                 document.getElementById('volumeValue').textContent = volume + '%';
+                setVolume(volume);
+            });
+            
+            // Playback volume slider (for currently playing song)
+            document.getElementById('playbackVolumeSlider').addEventListener('input', function(e) {
+                const volume = e.target.value;
+                document.getElementById('playbackVolumeValue').textContent = volume + '%';
                 setVolume(volume);
             });
 
@@ -1294,12 +1328,27 @@
             const statusText = document.getElementById('statusText');
             const currentlyPlaying = document.getElementById('currentlyPlaying');
             const currentSongName = document.getElementById('currentSongName');
+            const progressBar = document.getElementById('progressBar');
+            const currentTimeEl = document.getElementById('currentTime');
+            const totalTimeEl = document.getElementById('totalTime');
 
             if (status.playing && status.current_song) {
                 statusDot.style.background = '#10b981';
                 statusText.textContent = 'Playing';
                 currentlyPlaying.style.display = 'block';
                 currentSongName.textContent = status.current_song;
+
+                // Update progress bar
+                if (status.duration && status.position !== undefined) {
+                    const progress = (status.position / status.duration) * 100;
+                    progressBar.style.width = Math.min(progress, 100) + '%';
+                    currentTimeEl.textContent = formatDuration(status.position);
+                    totalTimeEl.textContent = formatDuration(status.duration);
+                } else {
+                    progressBar.style.width = '0%';
+                    currentTimeEl.textContent = '0:00';
+                    totalTimeEl.textContent = '0:00';
+                }
             } else {
                 statusDot.style.background = '#6b7280';
                 statusText.textContent = 'Idle';
@@ -1312,7 +1361,22 @@
             if (status.volume !== undefined) {
                 volumeSlider.value = status.volume;
                 volumeValue.textContent = status.volume + '%';
+                
+                // Also update playback volume slider
+                const playbackVolumeSlider = document.getElementById('playbackVolumeSlider');
+                const playbackVolumeValue = document.getElementById('playbackVolumeValue');
+                if (playbackVolumeSlider) {
+                    playbackVolumeSlider.value = status.volume;
+                    playbackVolumeValue.textContent = status.volume + '%';
+                }
             }
+        }
+        
+        function formatDuration(seconds) {
+            if (!seconds || seconds < 0) return '0:00';
+            const mins = Math.floor(seconds / 60);
+            const secs = Math.floor(seconds % 60);
+            return `${mins}:${secs.toString().padStart(2, '0')}`;
         }
 
         function renderSongs() {
@@ -1328,19 +1392,24 @@
                 return;
             }
 
-            songList.innerHTML = songs.map(song => `
+            songList.innerHTML = songs.map(song => {
+                const duration = song.duration ? formatDuration(song.duration) : 'Unknown';
+                return `
                 <div class="song-item">
                     <div class="song-info">
                         <div class="song-name">🎵 ${song.name}</div>
-                        <div class="song-details">${formatFileSize(song.size)}</div>
+                        <div class="song-details">
+                            ${formatFileSize(song.size)} • ⏱️ ${duration}
+                        </div>
                     </div>
                     <div class="song-actions">
-                        <button class="btn-small" onclick="playSong('${song.name}', false)">▶️ Play</button>
-                        <button class="btn-small" onclick="playSong('${song.name}', true)">🔁 Play & Repeat</button>
+                        <button class="btn-small" onclick="playSong('${song.name}', false)">▶️ Play Once</button>
+                        <button class="btn-small" onclick="playSong('${song.name}', true)">🔁 Loop</button>
                         <button class="btn-small danger" onclick="deleteSong('${song.name}')">🗑️</button>
                     </div>
                 </div>
-            `).join('');
+                `;
+            }).join('');
         }
 
         function renderSchedules() {
@@ -1367,6 +1436,7 @@
                         <div class="song-details">
                             <span class="schedule-time">${formatTime(schedule.hour, schedule.minute)}</span> • 
                             🎵 ${schedule.song}
+                            ${getSongDurationText(schedule.song)}
                             ${schedule.volume ? ` • 🔊 ${schedule.volume}%` : ''}
                             ${schedule.days_of_week && schedule.days_of_week.length > 0 ? ` • 📅 ${schedule.days_of_week.map(d => d.toUpperCase()).join(', ')}` : ' • 📅 Every day'}
                         </div>
@@ -1648,6 +1718,14 @@
             const h = hour.toString().padStart(2, '0');
             const m = minute.toString().padStart(2, '0');
             return `${h}:${m}`;
+        }
+        
+        function getSongDurationText(songName) {
+            const song = songs.find(s => s.name === songName);
+            if (song && song.duration) {
+                return ` • ⏱️ ${formatDuration(song.duration)}`;
+            }
+            return '';
         }
 
         function showAlert(elementId, message, type) {

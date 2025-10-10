@@ -12,6 +12,7 @@ from apscheduler.triggers.cron import CronTrigger
 import pygame
 import yt_dlp
 from pathlib import Path
+from mutagen import File as MutagenFile
 
 app = Flask(__name__, static_folder='static', static_url_path='')
 CORS(app)
@@ -35,6 +36,8 @@ scheduler.start()
 # Lock for thread-safe operations
 playback_lock = threading.Lock()
 current_playing = None
+current_playing_start_time = None
+current_song_duration = None
 
 # Health monitoring
 last_bluetooth_check = None
@@ -56,9 +59,20 @@ def save_schedules(schedules):
         json.dump(schedules, f, indent=2)
 
 
+def get_audio_duration(filepath):
+    """Get duration of audio file in seconds"""
+    try:
+        audio = MutagenFile(filepath)
+        if audio and audio.info:
+            return audio.info.length
+    except:
+        pass
+    return None
+
+
 def play_song(song_path, repeat=False, volume=None):
     """Play a song using pygame mixer"""
-    global current_playing, current_volume
+    global current_playing, current_volume, current_playing_start_time, current_song_duration
     with playback_lock:
         try:
             if pygame.mixer.music.get_busy():
@@ -66,6 +80,9 @@ def play_song(song_path, repeat=False, volume=None):
             
             full_path = os.path.join(SONGS_DIR, song_path)
             if os.path.exists(full_path):
+                # Get duration
+                current_song_duration = get_audio_duration(full_path)
+                
                 # Set volume if specified, otherwise keep current
                 if volume is not None:
                     pygame.mixer.music.set_volume(volume / 100.0)
@@ -74,7 +91,8 @@ def play_song(song_path, repeat=False, volume=None):
                 loops = -1 if repeat else 0  # -1 means infinite loop
                 pygame.mixer.music.play(loops=loops)
                 current_playing = song_path
-                print(f"Playing: {song_path} (repeat: {repeat}, volume: {volume if volume else 'default'})")
+                current_playing_start_time = datetime.now()
+                print(f"Playing: {song_path} (repeat: {repeat}, volume: {volume if volume else 'default'}, duration: {current_song_duration}s)")
             else:
                 print(f"Song not found: {full_path}")
         except Exception as e:
@@ -292,15 +310,17 @@ def index():
 
 @app.route('/api/songs', methods=['GET'])
 def get_songs():
-    """Get list of all songs"""
+    """Get list of all songs with duration"""
     songs = []
     for filename in os.listdir(SONGS_DIR):
         if filename.endswith(('.mp3', '.wav', '.ogg', '.m4a')):
             filepath = os.path.join(SONGS_DIR, filename)
+            duration = get_audio_duration(filepath)
             songs.append({
                 'name': filename,
                 'size': os.path.getsize(filepath),
-                'modified': os.path.getmtime(filepath)
+                'modified': os.path.getmtime(filepath),
+                'duration': duration
             })
     return jsonify(songs)
 
@@ -477,10 +497,12 @@ def play_now():
 @app.route('/api/playback/stop', methods=['POST'])
 def stop_playback():
     """Stop current playback"""
-    global current_playing
+    global current_playing, current_playing_start_time, current_song_duration
     with playback_lock:
         pygame.mixer.music.stop()
         current_playing = None
+        current_playing_start_time = None
+        current_song_duration = None
     return jsonify({'message': 'Playback stopped'})
 
 
@@ -516,12 +538,25 @@ def set_volume():
 
 @app.route('/api/playback/status', methods=['GET'])
 def get_status():
-    """Get current playback status"""
-    global current_playing, current_volume
+    """Get current playback status with progress"""
+    global current_playing, current_volume, current_playing_start_time, current_song_duration
+    
+    is_playing = pygame.mixer.music.get_busy()
+    position = 0
+    duration = 0
+    
+    if is_playing and current_playing_start_time and current_song_duration:
+        # Calculate current position
+        elapsed = (datetime.now() - current_playing_start_time).total_seconds()
+        position = min(elapsed, current_song_duration)
+        duration = current_song_duration
+    
     return jsonify({
-        'playing': pygame.mixer.music.get_busy(),
+        'playing': is_playing,
         'current_song': current_playing,
-        'volume': int(current_volume * 100)
+        'volume': int(current_volume * 100),
+        'position': position,
+        'duration': duration
     })
 
 

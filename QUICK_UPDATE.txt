@@ -1,0 +1,68 @@
+╔═══════════════════════════════════════════════════════════════╗
+║        PLAYBACK IMPROVEMENTS - QUICK UPDATE GUIDE             ║
+╚═══════════════════════════════════════════════════════════════╝
+
+📦 COPY THESE FILES TO RASPBERRY PI:
+  ✅ app.py
+  ✅ static/index.html  
+  ✅ requirements.txt
+
+🔧 INSTALLATION COMMANDS:
+  cd ~/homepi
+  source venv/bin/activate
+  pip install mutagen
+  sudo systemctl restart homepi.service
+
+✨ WHAT'S NEW:
+
+1. 🔁 REPEAT MODE EXPLAINED
+   ────────────────────────
+   ❌ Repeat OFF (default) = Play song ONCE
+   ✅ Repeat ON = Loop song FOREVER until stopped
+   
+   💡 For normal schedules: Leave repeat OFF
+   💡 For alarms: Turn repeat ON if you want it to keep playing
+
+2. ⏱️ TRACK DURATIONS
+   ────────────────────
+   ✅ Duration shown for every song (e.g., "3:24")
+   ✅ Duration shown in schedules
+   ✅ Now you can spot schedule conflicts!
+   
+   Example:
+   07:00 - Morning Song (3:24) → ends 07:03
+   07:05 - Next Song (2:15) → starts 07:05
+   ✅ No conflict!
+
+3. 📊 LIVE PROGRESS BAR
+   ────────────────────
+   ✅ See current position in song
+   ✅ See total duration
+   ✅ Visual progress bar
+   ✅ Updates every 2 seconds
+   
+   Display: "1:32 / 3:24" with progress bar
+
+4. 🔊 PLAYBACK VOLUME CONTROL
+   ────────────────────────────
+   ✅ Adjust volume while song is playing
+   ✅ Independent from default volume
+   ✅ Real-time control
+
+5. 🎛️ CLEARER BUTTONS
+   ────────────────────
+   Before: "Play" and "Play & Repeat"
+   Now: "▶️ Play Once" and "🔁 Loop"
+   
+   Much clearer what each button does!
+
+📖 READ MORE:
+  PLAYBACK_IMPROVEMENTS.md - Full documentation
+
+🎉 RESULT:
+  - Know exactly how long each song is
+  - See playback progress in real-time
+  - Understand what repeat actually does
+  - Plan schedules without conflicts
+  - Control volume on the fly
+
