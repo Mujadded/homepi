@@ -34,9 +34,24 @@ os.makedirs(SONGS_DIR, exist_ok=True)
 os.makedirs(BACKUP_DIR, exist_ok=True)
 
 # Initialize pygame mixer for audio playback
-pygame.mixer.init()
+# Set audio driver to ALSA to avoid PulseAudio issues
+os.environ['SDL_AUDIODRIVER'] = 'alsa'
+try:
+    pygame.mixer.init()
+except pygame.error as e:
+    print(f"⚠ Warning: Audio initialization failed: {e}")
+    print("  Trying alternative audio driver...")
+    os.environ['SDL_AUDIODRIVER'] = 'dsp'
+    try:
+        pygame.mixer.init()
+    except:
+        print("  Audio playback may not work. Please check audio configuration.")
+
 current_volume = 0.7  # Default volume (0.0 to 1.0)
-pygame.mixer.music.set_volume(current_volume)
+try:
+    pygame.mixer.music.set_volume(current_volume)
+except:
+    print("  Could not set volume - audio may not be available")
 
 # Scheduler
 scheduler = BackgroundScheduler()
