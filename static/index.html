@@ -1261,12 +1261,13 @@
                                     <div style="display: flex; justify-content: space-between; align-items: center;">
                                         <div>
                                             <div style="font-weight: 700; color: var(--dark); margin-bottom: 4px;">
-                                                ${formatTime(schedule.hour, schedule.minute)} - ${schedule.name}
+                                                ${formatTime(schedule.hour, schedule.minute)}${getScheduleEndTime(schedule)} - ${schedule.name}
                                                 ${isComing ? ' <span style="color: var(--warning);">🔔 Coming up!</span>' : ''}
                                                 ${isPast ? ' <span style="color: var(--gray-600);">✓ Played</span>' : ''}
                                             </div>
                                             <div style="font-size: 0.9em; color: var(--gray-600);">
                                                 🎵 ${schedule.song}
+                                                ${getSongDurationText(schedule.song)}
                                                 ${schedule.repeat ? ' • 🔁 Repeat' : ''}
                                                 ${schedule.volume ? ` • 🔊 ${schedule.volume}%` : ''}
                                                 <br>
@@ -1434,7 +1435,7 @@
                             ${schedule.repeat ? '<span class="badge badge-success">Repeat</span>' : ''}
                         </div>
                         <div class="song-details">
-                            <span class="schedule-time">${formatTime(schedule.hour, schedule.minute)}</span> • 
+                            <span class="schedule-time">${formatTime(schedule.hour, schedule.minute)}</span>${getScheduleEndTime(schedule)} • 
                             🎵 ${schedule.song}
                             ${getSongDurationText(schedule.song)}
                             ${schedule.volume ? ` • 🔊 ${schedule.volume}%` : ''}
@@ -1726,6 +1727,29 @@
                 return ` • ⏱️ ${formatDuration(song.duration)}`;
             }
             return '';
+        }
+        
+        function getScheduleEndTime(schedule) {
+            // Calculate end time based on start time + duration
+            const song = songs.find(s => s.name === schedule.song);
+            if (!song || !song.duration) {
+                return ''; // No duration info available
+            }
+            
+            // If repeat is on, it never ends
+            if (schedule.repeat) {
+                return ' → <span style="color: var(--warning); font-weight: 600;">♾️ Loops Forever</span>';
+            }
+            
+            // Calculate end time
+            const startMinutes = schedule.hour * 60 + schedule.minute;
+            const durationMinutes = Math.ceil(song.duration / 60);
+            const endMinutes = startMinutes + durationMinutes;
+            
+            const endHour = Math.floor(endMinutes / 60) % 24;
+            const endMinute = endMinutes % 60;
+            
+            return ` → <span style="color: var(--success); font-weight: 600;">${formatTime(endHour, endMinute)}</span>`;
         }
 
         function showAlert(elementId, message, type) {
