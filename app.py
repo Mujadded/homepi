@@ -405,8 +405,8 @@ def download_youtube():
             'extract_audio': True,
             # Prefer youtube music if available
             'extractor_args': {'youtube': {'player_client': ['android', 'web']}},
-            # Socket timeout for large files (30 minutes)
-            'socket_timeout': 1800,
+            # Socket timeout for large files (2 hours = 7200 seconds)
+            'socket_timeout': 7200,
         }
         
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
