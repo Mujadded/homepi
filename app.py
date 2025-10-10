@@ -344,11 +344,35 @@ def upload_song():
 
 @app.route('/api/songs/<path:filename>', methods=['DELETE'])
 def delete_song(filename):
-    """Delete a song file"""
+    """Delete a song file and all schedules using it"""
     filepath = os.path.join(SONGS_DIR, filename)
     if os.path.exists(filepath):
+        # Delete the song file
         os.remove(filepath)
-        return jsonify({'message': 'Song deleted successfully'})
+        
+        # Delete all schedules using this song
+        schedules = load_schedules()
+        schedules_to_delete = [s for s in schedules if s['song'] == filename]
+        
+        # Remove scheduled jobs
+        for schedule in schedules_to_delete:
+            job_id = f"schedule_{schedule['id']}"
+            if scheduler.get_job(job_id):
+                scheduler.remove_job(job_id)
+        
+        # Keep only schedules that don't use this song
+        updated_schedules = [s for s in schedules if s['song'] != filename]
+        save_schedules(updated_schedules)
+        
+        deleted_count = len(schedules_to_delete)
+        message = f'Song deleted successfully'
+        if deleted_count > 0:
+            message += f' (also deleted {deleted_count} schedule{"s" if deleted_count > 1 else ""} using this song)'
+        
+        return jsonify({
+            'message': message,
+            'deleted_schedules': deleted_count
+        })
     return jsonify({'error': 'Song not found'}), 404
 
 

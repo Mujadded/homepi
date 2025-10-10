@@ -1593,12 +1593,34 @@
         }
 
         async function deleteSong(filename) {
-            if (!confirm(`Delete "${filename}"?`)) return;
+            // Check if song is used in any schedules
+            const schedulesUsingSong = schedules.filter(s => s.song === filename);
+            
+            let confirmMessage = `Delete "${filename}"?`;
+            if (schedulesUsingSong.length > 0) {
+                confirmMessage = `Delete "${filename}"?\n\n⚠️ WARNING: This will also delete ${schedulesUsingSong.length} schedule${schedulesUsingSong.length > 1 ? 's' : ''} using this song:\n\n`;
+                schedulesUsingSong.forEach(s => {
+                    confirmMessage += `• ${s.name} (${formatTime(s.hour, s.minute)})\n`;
+                });
+            }
+            
+            if (!confirm(confirmMessage)) return;
 
-            await fetch(`/api/songs/${encodeURIComponent(filename)}`, {
-                method: 'DELETE'
-            });
-            loadSongs();
+            try {
+                const response = await fetch(`/api/songs/${encodeURIComponent(filename)}`, {
+                    method: 'DELETE'
+                });
+                const result = await response.json();
+                
+                if (result.deleted_schedules > 0) {
+                    alert(`✅ ${result.message}`);
+                    loadSchedules(); // Refresh schedules list
+                }
+                
+                loadSongs();
+            } catch (error) {
+                alert('Failed to delete song');
+            }
         }
 
         // Schedule management
