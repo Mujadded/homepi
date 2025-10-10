@@ -14,6 +14,10 @@ sensor_data = {
     'temperature': None,
     'humidity': None,
     'pressure': None,
+    'orientation': None,  # Sense HAT orientation (pitch, roll, yaw)
+    'accelerometer': None,  # Raw acceleration data
+    'gyroscope': None,  # Gyroscope data
+    'magnetometer': None,  # Compass/magnetometer data
     'last_update': None,
     'sensor_available': False
 }
@@ -180,6 +184,86 @@ def read_pressure():
         return None
 
 
+def read_orientation():
+    """Read orientation from Sense HAT (pitch, roll, yaw)"""
+    global sensor, sensor_type, sensor_data
+    
+    if sensor is None or sensor_type != 'sense_hat':
+        return None
+    
+    try:
+        orientation = sensor.get_orientation()
+        sensor_data['orientation'] = {
+            'pitch': round(orientation['pitch'], 1),
+            'roll': round(orientation['roll'], 1),
+            'yaw': round(orientation['yaw'], 1)
+        }
+        return sensor_data['orientation']
+    except Exception as e:
+        print(f"Error reading orientation: {e}")
+        return None
+
+
+def read_accelerometer():
+    """Read accelerometer data from Sense HAT"""
+    global sensor, sensor_type, sensor_data
+    
+    if sensor is None or sensor_type != 'sense_hat':
+        return None
+    
+    try:
+        accel = sensor.get_accelerometer_raw()
+        sensor_data['accelerometer'] = {
+            'x': round(accel['x'], 3),
+            'y': round(accel['y'], 3),
+            'z': round(accel['z'], 3)
+        }
+        return sensor_data['accelerometer']
+    except Exception as e:
+        print(f"Error reading accelerometer: {e}")
+        return None
+
+
+def read_gyroscope():
+    """Read gyroscope data from Sense HAT"""
+    global sensor, sensor_type, sensor_data
+    
+    if sensor is None or sensor_type != 'sense_hat':
+        return None
+    
+    try:
+        gyro = sensor.get_gyroscope_raw()
+        sensor_data['gyroscope'] = {
+            'x': round(gyro['x'], 3),
+            'y': round(gyro['y'], 3),
+            'z': round(gyro['z'], 3)
+        }
+        return sensor_data['gyroscope']
+    except Exception as e:
+        print(f"Error reading gyroscope: {e}")
+        return None
+
+
+def read_magnetometer():
+    """Read magnetometer/compass data from Sense HAT"""
+    global sensor, sensor_type, sensor_data
+    
+    if sensor is None or sensor_type != 'sense_hat':
+        return None
+    
+    try:
+        compass = sensor.get_compass_raw()
+        sensor_data['magnetometer'] = {
+            'x': round(compass['x'], 1),
+            'y': round(compass['y'], 1),
+            'z': round(compass['z'], 1)
+        }
+        return sensor_data['magnetometer']
+    except Exception as e:
+        print(f"Error reading magnetometer: {e}")
+        return None
+
+
 def read_all_sensors():
     """Read all sensor values and update global data"""
     global sensor_data
@@ -188,9 +272,17 @@ def read_all_sensors():
         return sensor_data
     
     try:
+        # Basic environmental sensors
         temp = read_temperature()
         humidity = read_humidity()
         pressure = read_pressure()
+        
+        # Sense HAT motion sensors (if available)
+        if sensor_type == 'sense_hat':
+            read_orientation()
+            read_accelerometer()
+            read_gyroscope()
+            read_magnetometer()
         
         if temp is not None or humidity is not None:
             sensor_data['last_update'] = datetime.now().isoformat()

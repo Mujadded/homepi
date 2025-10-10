@@ -309,12 +309,39 @@ def render_sense_hat_countdown():
     
     next_schedule, countdown = get_next_schedule()
     
-    if next_schedule:
-        # Show clock icon in blue
-        display.show_message("Next", scroll_speed=0.05, text_colour=[0, 100, 255])
+    if next_schedule and countdown:
+        # Parse countdown (format: "HH:MM")
+        parts = countdown.split(':')
+        if len(parts) == 2:
+            hours = int(parts[0])
+            minutes = int(parts[1])
+            
+            # Show time remaining in large numbers
+            if hours > 0:
+                # Show hours (e.g., "2h")
+                display.show_message(f"{hours}h", scroll_speed=0.08, text_colour=[100, 150, 255])
+            else:
+                # Show minutes (e.g., "45m")
+                display.show_message(f"{minutes}m", scroll_speed=0.08, text_colour=[100, 255, 150])
     else:
-        # Show idle icon
-        display.clear()
+        # Show a clock icon when no schedule
+        clock_icon = [
+            [0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 1, 1, 1, 1, 0, 0],
+            [0, 1, 0, 0, 1, 0, 1, 0],
+            [0, 1, 0, 0, 1, 0, 1, 0],
+            [0, 1, 0, 0, 0, 0, 1, 0],
+            [0, 1, 0, 0, 0, 0, 1, 0],
+            [0, 0, 1, 1, 1, 1, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0]
+        ]
+        # Convert to RGB (dim white)
+        for y in range(8):
+            for x in range(8):
+                if clock_icon[y][x]:
+                    display.set_pixel(x, y, 80, 80, 80)
+                else:
+                    display.set_pixel(x, y, 0, 0, 0)
 
 
 def render_sense_hat_playing():
@@ -322,8 +349,24 @@ def render_sense_hat_playing():
     global display
     
     if playback_state.get('playing'):
-        # Show music note icon or scrolling song name
-        display.show_message("Playing", scroll_speed=0.05, text_colour=[0, 255, 0])
+        # Show music note icon
+        music_icon = [
+            [0, 0, 0, 0, 0, 1, 1, 0],
+            [0, 0, 0, 0, 0, 1, 1, 0],
+            [0, 0, 0, 0, 0, 1, 1, 0],
+            [0, 0, 0, 0, 0, 1, 1, 0],
+            [0, 1, 1, 0, 0, 1, 1, 0],
+            [1, 1, 1, 1, 1, 1, 1, 1],
+            [1, 1, 1, 1, 1, 1, 1, 1],
+            [0, 1, 1, 0, 0, 1, 1, 0]
+        ]
+        # Green for playing
+        for y in range(8):
+            for x in range(8):
+                if music_icon[y][x]:
+                    display.set_pixel(x, y, 0, 255, 0)
+                else:
+                    display.set_pixel(x, y, 0, 0, 0)
     else:
         display.clear()
 
@@ -334,19 +377,50 @@ def render_sense_hat_sensor():
     
     if sensor_data_ref and sensor_data_ref.get('sensor_available'):
         temp = sensor_data_ref.get('temperature')
+        humidity = sensor_data_ref.get('humidity')
+        
         if temp:
-            # Show temperature value
-            display.show_message(f"{temp:.0f}C", scroll_speed=0.05, text_colour=[255, 100, 0])
+            # Color-code temperature (blue=cold, green=comfortable, red=hot)
+            if temp < 18:
+                color = [0, 100, 255]  # Blue
+            elif temp < 25:
+                color = [0, 255, 100]  # Green
+            else:
+                color = [255, 100, 0]  # Orange/Red
+            
+            # Show temperature with proper scroll speed
+            display.show_message(f"{temp:.0f}C {humidity:.0f}%", scroll_speed=0.08, text_colour=color)
     else:
         display.clear()
 
 
 def render_sense_hat_idle():
-    """Render idle screen on Sense HAT"""
+    """Render idle screen on Sense HAT - show orientation/motion"""
     global display
     
-    # Show a simple pattern or clear
-    display.clear()
+    try:
+        # Get accelerometer data for tilt visualization
+        accel = display.get_accelerometer_raw()
+        x = accel['x']
+        y = accel['y']
+        
+        # Map acceleration to pixel position (center at 4,4)
+        pixel_x = int(4 + x * 3)
+        pixel_y = int(4 - y * 3)
+        
+        # Clamp to 0-7 range
+        pixel_x = max(0, min(7, pixel_x))
+        pixel_y = max(0, min(7, pixel_y))
+        
+        # Clear and show a dot representing tilt direction
+        display.clear()
+        display.set_pixel(pixel_x, pixel_y, 100, 100, 255)
+        
+        # Add center reference point
+        display.set_pixel(4, 4, 50, 50, 50)
+    except:
+        # If gyro not available, just clear
+        display.clear()
 
 
 def update_display():

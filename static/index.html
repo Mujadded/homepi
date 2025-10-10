@@ -841,6 +841,38 @@
             <div id="hatDisconnectedWarning" style="display: none; margin-top: 16px; padding: 12px; background: rgba(239, 68, 68, 0.1); border-left: 4px solid var(--danger); border-radius: 8px; color: var(--danger); font-weight: 600;">
                 ⚠️ Pi HAT not detected. Connect HAT and restart to enable environmental monitoring.
             </div>
+            
+            <!-- Advanced Sensors (Sense HAT Motion) -->
+            <div id="advancedSensors" style="margin-top: 20px; display: none;">
+                <div style="cursor: pointer; padding: 12px; background: rgba(99, 102, 241, 0.1); border-radius: 12px; margin-bottom: 12px;" onclick="toggleAdvancedSensors()">
+                    <strong>🎮 Advanced Sensors (Sense HAT)</strong>
+                    <span id="advancedSensorsToggle" style="float: right;">▼ Show</span>
+                </div>
+                <div id="advancedSensorsContent" style="display: none; padding: 16px; background: rgba(255, 255, 255, 0.5); border-radius: 12px;">
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px;">
+                        <!-- Orientation -->
+                        <div style="padding: 12px; background: white; border-radius: 8px; border-left: 4px solid #8b5cf6;">
+                            <div style="font-size: 0.85em; color: var(--gray-600); margin-bottom: 4px;">📐 Orientation</div>
+                            <div id="orientationData" style="font-size: 0.9em; font-weight: 600;">--</div>
+                        </div>
+                        <!-- Accelerometer -->
+                        <div style="padding: 12px; background: white; border-radius: 8px; border-left: 4px solid #10b981;">
+                            <div style="font-size: 0.85em; color: var(--gray-600); margin-bottom: 4px;">⚡ Accelerometer</div>
+                            <div id="accelData" style="font-size: 0.9em; font-weight: 600;">--</div>
+                        </div>
+                        <!-- Gyroscope -->
+                        <div style="padding: 12px; background: white; border-radius: 8px; border-left: 4px solid #f59e0b;">
+                            <div style="font-size: 0.85em; color: var(--gray-600); margin-bottom: 4px;">🔄 Gyroscope</div>
+                            <div id="gyroData" style="font-size: 0.9em; font-weight: 600;">--</div>
+                        </div>
+                        <!-- Magnetometer -->
+                        <div style="padding: 12px; background: white; border-radius: 8px; border-left: 4px solid #ef4444;">
+                            <div style="font-size: 0.85em; color: var(--gray-600); margin-bottom: 4px;">🧭 Compass</div>
+                            <div id="compassData" style="font-size: 0.9em; font-weight: 600;">--</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
 
         <!-- Schedules - Main Focus -->
@@ -2040,9 +2072,60 @@
                     document.getElementById('roomHumidityValue').textContent = '--%';
                     document.getElementById('humiditySensorValue').textContent = '--';
                 }
+                
+                // Show advanced sensors section if Sense HAT motion data is available
+                if (data.orientation || data.accelerometer || data.gyroscope || data.magnetometer) {
+                    document.getElementById('advancedSensors').style.display = 'block';
+                    
+                    // Update orientation
+                    if (data.orientation) {
+                        document.getElementById('orientationData').innerHTML = 
+                            `P: ${data.orientation.pitch.toFixed(1)}°<br>` +
+                            `R: ${data.orientation.roll.toFixed(1)}°<br>` +
+                            `Y: ${data.orientation.yaw.toFixed(1)}°`;
+                    }
+                    
+                    // Update accelerometer
+                    if (data.accelerometer) {
+                        document.getElementById('accelData').innerHTML = 
+                            `X: ${data.accelerometer.x.toFixed(2)}g<br>` +
+                            `Y: ${data.accelerometer.y.toFixed(2)}g<br>` +
+                            `Z: ${data.accelerometer.z.toFixed(2)}g`;
+                    }
+                    
+                    // Update gyroscope
+                    if (data.gyroscope) {
+                        document.getElementById('gyroData').innerHTML = 
+                            `X: ${data.gyroscope.x.toFixed(2)}°/s<br>` +
+                            `Y: ${data.gyroscope.y.toFixed(2)}°/s<br>` +
+                            `Z: ${data.gyroscope.z.toFixed(2)}°/s`;
+                    }
+                    
+                    // Update magnetometer
+                    if (data.magnetometer) {
+                        document.getElementById('compassData').innerHTML = 
+                            `X: ${data.magnetometer.x.toFixed(0)}µT<br>` +
+                            `Y: ${data.magnetometer.y.toFixed(0)}µT<br>` +
+                            `Z: ${data.magnetometer.z.toFixed(0)}µT`;
+                    }
+                }
             } catch (error) {
                 console.error('Failed to load sensor data:', error);
                 document.getElementById('hatDisconnectedWarning').style.display = 'block';
+            }
+        }
+        
+        // Toggle advanced sensors panel
+        function toggleAdvancedSensors() {
+            const content = document.getElementById('advancedSensorsContent');
+            const toggle = document.getElementById('advancedSensorsToggle');
+            
+            if (content.style.display === 'none') {
+                content.style.display = 'block';
+                toggle.textContent = '▲ Hide';
+            } else {
+                content.style.display = 'none';
+                toggle.textContent = '▼ Show';
             }
         }
 
