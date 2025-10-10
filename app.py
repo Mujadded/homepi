@@ -788,6 +788,24 @@ if __name__ == '__main__':
         display_thread = display_manager.start_display_thread(schedules_list, sensor_data_dict)
         if display_thread:
             print("✓ OLED display active")
+        
+        # Set up volume control callback for joystick
+        def volume_control_callback(action, value=None):
+            """Handle volume control from joystick"""
+            global current_volume
+            if action == 'get':
+                return int(current_volume * 100)
+            elif action == 'set' and value is not None:
+                try:
+                    current_volume = value / 100.0
+                    pygame.mixer.music.set_volume(current_volume)
+                    return value
+                except:
+                    pass
+            return int(current_volume * 100)
+        
+        display_manager.set_volume_callback(volume_control_callback)
+        print("✓ Joystick controls enabled (Up/Down=Brightness, Left/Right=Volume)")
     else:
         print("\n⚠ Pi HAT modules not loaded - running without display/sensors")
     

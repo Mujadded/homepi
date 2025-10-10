@@ -16,6 +16,11 @@ display = None
 display_config = {}
 current_screen = 0
 display_enabled = False
+current_brightness = 1  # 0=low_light, 1=normal (False/True for low_light)
+showing_control_overlay = False
+control_overlay_type = None  # 'brightness' or 'volume'
+control_overlay_time = 0
+control_value = 0
 
 # Shared state from main app
 playback_state = {
@@ -27,6 +32,7 @@ playback_state = {
 
 schedules_data = []
 sensor_data_ref = None
+volume_callback = None  # Callback to set volume in main app
 
 
 def load_config():
@@ -68,9 +74,10 @@ def init_display():
             
             display = SenseHat()
             display.low_light = True  # Reduce brightness
+            display.rotation = 180  # Rotate display 180 degrees
             display.clear()
             
-            print("✓ Sense HAT LED matrix initialized (8x8)")
+            print("✓ Sense HAT LED matrix initialized (8x8, rotated 180°)")
             display_enabled = True
             return True
             
@@ -497,9 +504,146 @@ def render_sense_hat_idle():
                 display.set_pixel(x, y, pulse, 0, pulse // 2)
 
 
+def render_brightness_overlay(brightness_level):
+    """Show brightness control overlay with sun icon"""
+    global display
+    display.clear()
+    
+    # Sun icon in center
+    sun = [
+        [0,0,0,1,1,0,0,0],
+        [0,1,0,1,1,0,1,0],
+        [0,0,1,1,1,1,0,0],
+        [1,1,1,1,1,1,1,1],
+        [1,1,1,1,1,1,1,1],
+        [0,0,1,1,1,1,0,0],
+        [0,1,0,1,1,0,1,0],
+        [0,0,0,1,1,0,0,0]
+    ]
+    
+    # Draw sun
+    brightness = int(brightness_level * 255)
+    for y in range(8):
+        for x in range(8):
+            if sun[y][x]:
+                display.set_pixel(x, y, brightness, brightness, 0)
+    
+    # Bottom row shows level (0-8 pixels)
+    level_pixels = int(brightness_level * 8)
+    # Clear bottom row first
+    for x in range(8):
+        if x < level_pixels:
+            display.set_pixel(x, 7, 255, 200, 0)
+
+
+def render_volume_overlay(volume_percent):
+    """Show volume control overlay with speaker icon"""
+    global display
+    display.clear()
+    
+    # Speaker icon
+    speaker = [
+        [0,0,0,0,1,0,0,1],
+        [0,0,1,0,1,0,1,0],
+        [0,1,1,1,1,1,0,0],
+        [0,1,1,1,1,1,1,0],
+        [0,1,1,1,1,1,1,0],
+        [0,1,1,1,1,1,0,0],
+        [0,0,1,0,1,0,1,0],
+        [0,0,0,0,1,0,0,1]
+    ]
+    
+    # Draw speaker
+    for y in range(8):
+        for x in range(8):
+            if speaker[y][x]:
+                display.set_pixel(x, y, 0, 200, 255)
+    
+    # Right column shows volume level
+    level_pixels = int((volume_percent / 100) * 8)
+    for y in range(8):
+        if y >= (8 - level_pixels):
+            display.set_pixel(7, y, 0, 255, 0)
+
+
+def handle_joystick_events():
+    """Handle joystick input for brightness and volume control"""
+    global display, current_brightness, showing_control_overlay, control_overlay_type
+    global control_overlay_time, control_value, volume_callback
+    
+    if not display or not display_enabled:
+        return
+    
+    display_type = display_config.get('type', 'ssd1306')
+    if display_type != 'sense_hat':
+        return
+    
+    try:
+        from sense_hat import SenseHat, ACTION_PRESSED
+        
+        # Check joystick events
+        for event in display.stick.get_events():
+            if event.action == ACTION_PRESSED:
+                # UP/DOWN = Brightness control
+                if event.direction == "up":
+                    # Increase brightness
+                    if display.low_light:
+                        display.low_light = False
+                        current_brightness = 1.0
+                    
+                    showing_control_overlay = True
+                    control_overlay_type = 'brightness'
+                    control_overlay_time = time.time()
+                    control_value = current_brightness
+                    
+                elif event.direction == "down":
+                    # Decrease brightness
+                    if not display.low_light:
+                        display.low_light = True
+                        current_brightness = 0.3
+                    
+                    showing_control_overlay = True
+                    control_overlay_type = 'brightness'
+                    control_overlay_time = time.time()
+                    control_value = current_brightness
+                
+                # LEFT/RIGHT = Volume control
+                elif event.direction == "left":
+                    # Decrease volume
+                    if volume_callback:
+                        current_vol = volume_callback('get')
+                        new_vol = max(0, current_vol - 10)
+                        volume_callback('set', new_vol)
+                        
+                        showing_control_overlay = True
+                        control_overlay_type = 'volume'
+                        control_overlay_time = time.time()
+                        control_value = new_vol
+                
+                elif event.direction == "right":
+                    # Increase volume
+                    if volume_callback:
+                        current_vol = volume_callback('get')
+                        new_vol = min(100, current_vol + 10)
+                        volume_callback('set', new_vol)
+                        
+                        showing_control_overlay = True
+                        control_overlay_type = 'volume'
+                        control_overlay_time = time.time()
+                        control_value = new_vol
+                
+                # MIDDLE = Dismiss overlay immediately
+                elif event.direction == "middle":
+                    showing_control_overlay = False
+    
+    except Exception as e:
+        pass  # Joystick not available or error
+
+
 def update_display():
     """Update the display with current screen"""
-    global display, current_screen, display_config
+    global display, current_screen, display_config, showing_control_overlay
+    global control_overlay_type, control_overlay_time, control_value
     
     if not display or not display_enabled:
         return
@@ -507,6 +651,19 @@ def update_display():
     display_type = display_config.get('type', 'ssd1306')
     
     try:
+        # Check for joystick input
+        handle_joystick_events()
+        
+        # Show control overlay if active (for 2 seconds)
+        if showing_control_overlay and time.time() - control_overlay_time < 2:
+            if control_overlay_type == 'brightness':
+                render_brightness_overlay(control_value)
+            elif control_overlay_type == 'volume':
+                render_volume_overlay(control_value)
+            return  # Don't show normal screens while overlay is active
+        else:
+            showing_control_overlay = False
+        
         if display_type == 'sense_hat':
             # Sense HAT LED matrix (8x8) - simple visualizations
             if current_screen == 0:
@@ -602,6 +759,12 @@ def update_schedules(schedules):
     """Update schedules data for display"""
     global schedules_data
     schedules_data = schedules
+
+
+def set_volume_callback(callback):
+    """Set callback function for volume control from main app"""
+    global volume_callback
+    volume_callback = callback
 
 
 if __name__ == "__main__":
