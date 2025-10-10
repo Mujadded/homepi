@@ -6,6 +6,7 @@ Handles SSD1306 OLED display showing song info, countdown, and sensor data
 import os
 import json
 import time
+import math
 import threading
 from datetime import datetime, timedelta
 from PIL import Image, ImageDraw, ImageFont
@@ -304,7 +305,7 @@ def render_combined_screen(draw, width, height):
 
 
 def render_sense_hat_countdown():
-    """Render countdown on Sense HAT 8x8 LED matrix"""
+    """Render countdown on Sense HAT 8x8 LED matrix with animation"""
     global display
     
     next_schedule, countdown = get_next_schedule()
@@ -316,63 +317,97 @@ def render_sense_hat_countdown():
             hours = int(parts[0])
             minutes = int(parts[1])
             
-            # Show time remaining in large numbers
+            # Animated countdown with pulsing border
+            display.clear()
+            
+            # Pulsing border effect
+            import time
+            pulse = int((time.time() % 2) * 127) + 128  # Pulse between 128-255
+            
+            # Draw border
+            for i in range(8):
+                display.set_pixel(i, 0, 0, 0, pulse)  # Top
+                display.set_pixel(i, 7, 0, 0, pulse)  # Bottom
+                display.set_pixel(0, i, 0, 0, pulse)  # Left
+                display.set_pixel(7, i, 0, 0, pulse)  # Right
+            
+            # Show time in center as scrolling text (slower)
             if hours > 0:
-                # Show hours (e.g., "2h")
-                display.show_message(f"{hours}h", scroll_speed=0.08, text_colour=[100, 150, 255])
+                display.show_message(f"{hours}h{minutes}m", scroll_speed=0.1, text_colour=[100, 200, 255])
             else:
-                # Show minutes (e.g., "45m")
-                display.show_message(f"{minutes}m", scroll_speed=0.08, text_colour=[100, 255, 150])
+                display.show_message(f"{minutes}min", scroll_speed=0.1, text_colour=[100, 255, 150])
     else:
-        # Show a clock icon when no schedule
-        clock_icon = [
-            [0, 0, 0, 0, 0, 0, 0, 0],
-            [0, 0, 1, 1, 1, 1, 0, 0],
-            [0, 1, 0, 0, 1, 0, 1, 0],
-            [0, 1, 0, 0, 1, 0, 1, 0],
-            [0, 1, 0, 0, 0, 0, 1, 0],
-            [0, 1, 0, 0, 0, 0, 1, 0],
-            [0, 0, 1, 1, 1, 1, 0, 0],
-            [0, 0, 0, 0, 0, 0, 0, 0]
-        ]
-        # Convert to RGB (dim white)
-        for y in range(8):
-            for x in range(8):
-                if clock_icon[y][x]:
-                    display.set_pixel(x, y, 80, 80, 80)
-                else:
-                    display.set_pixel(x, y, 0, 0, 0)
+        # Animated clock with moving hands
+        import time
+        display.clear()
+        
+        # Clock circle
+        clock_pixels = [(2,1), (3,1), (4,1), (5,1),  # Top
+                        (1,2), (6,2), (1,3), (6,3), (1,4), (6,4), (1,5), (6,5),  # Sides
+                        (2,6), (3,6), (4,6), (5,6)]  # Bottom
+        
+        for x, y in clock_pixels:
+            display.set_pixel(x, y, 80, 80, 120)
+        
+        # Animated second hand (rotating)
+        second = int(time.time() % 8)
+        hand_positions = [(4,2), (5,2), (5,3), (5,4), (4,5), (3,5), (2,4), (2,3)]
+        hx, hy = hand_positions[second]
+        display.set_pixel(4, 4, 255, 200, 0)  # Center
+        display.set_pixel(hx, hy, 255, 100, 0)  # Hand tip
 
 
 def render_sense_hat_playing():
-    """Render playing status on Sense HAT"""
+    """Render playing status on Sense HAT with audio visualization"""
     global display
     
     if playback_state.get('playing'):
-        # Show music note icon
-        music_icon = [
-            [0, 0, 0, 0, 0, 1, 1, 0],
-            [0, 0, 0, 0, 0, 1, 1, 0],
-            [0, 0, 0, 0, 0, 1, 1, 0],
-            [0, 0, 0, 0, 0, 1, 1, 0],
-            [0, 1, 1, 0, 0, 1, 1, 0],
-            [1, 1, 1, 1, 1, 1, 1, 1],
-            [1, 1, 1, 1, 1, 1, 1, 1],
-            [0, 1, 1, 0, 0, 1, 1, 0]
-        ]
-        # Green for playing
-        for y in range(8):
-            for x in range(8):
-                if music_icon[y][x]:
-                    display.set_pixel(x, y, 0, 255, 0)
-                else:
-                    display.set_pixel(x, y, 0, 0, 0)
-    else:
+        import time
+        import random
+        
+        # Animated audio bars (simulated spectrum analyzer)
         display.clear()
+        
+        # Create 8 columns of bars that bounce to simulate audio
+        beat = time.time() * 2  # Animation speed
+        
+        for x in range(8):
+            # Each column has different height based on time and position
+            height = int(4 + 3 * abs(math.sin(beat + x * 0.5)))
+            
+            for y in range(8):
+                if y >= (8 - height):
+                    # Color gradient from bottom (green) to top (red)
+                    if y >= 6:
+                        display.set_pixel(x, y, 0, 255, 0)  # Green bottom
+                    elif y >= 4:
+                        display.set_pixel(x, y, 255, 255, 0)  # Yellow middle
+                    else:
+                        display.set_pixel(x, y, 255, 0, 0)  # Red top
+    else:
+        # Idle - show rainbow wave
+        import time
+        display.clear()
+        t = time.time() * 0.5
+        
+        for x in range(8):
+            for y in range(8):
+                # Create rainbow wave effect
+                hue = (x + y + t * 10) % 255
+                # Convert HSV to RGB (simplified)
+                if hue < 85:
+                    r, g, b = 255 - hue * 3, hue * 3, 0
+                elif hue < 170:
+                    r, g, b = 0, 255 - (hue - 85) * 3, (hue - 85) * 3
+                else:
+                    r, g, b = (hue - 170) * 3, 0, 255 - (hue - 170) * 3
+                
+                # Dim the colors
+                display.set_pixel(x, y, int(r/4), int(g/4), int(b/4))
 
 
 def render_sense_hat_sensor():
-    """Render sensor data on Sense HAT"""
+    """Render sensor data on Sense HAT with animated temperature gauge"""
     global display, sensor_data_ref
     
     if sensor_data_ref and sensor_data_ref.get('sensor_available'):
@@ -380,47 +415,103 @@ def render_sense_hat_sensor():
         humidity = sensor_data_ref.get('humidity')
         
         if temp:
-            # Color-code temperature (blue=cold, green=comfortable, red=hot)
-            if temp < 18:
-                color = [0, 100, 255]  # Blue
-            elif temp < 25:
-                color = [0, 255, 100]  # Green
-            else:
-                color = [255, 100, 0]  # Orange/Red
+            display.clear()
             
-            # Show temperature with proper scroll speed
-            display.show_message(f"{temp:.0f}C {humidity:.0f}%", scroll_speed=0.08, text_colour=color)
+            # Temperature bar graph (left side)
+            temp_height = int((temp - 10) / 30 * 7)  # Map 10-40°C to 0-7 pixels
+            temp_height = max(0, min(7, temp_height))
+            
+            for y in range(8):
+                if y >= (7 - temp_height):
+                    # Color changes with temperature
+                    if temp < 18:
+                        display.set_pixel(0, y, 0, 0, 255)  # Cold = blue
+                        display.set_pixel(1, y, 0, 100, 255)
+                    elif temp < 25:
+                        display.set_pixel(0, y, 0, 255, 0)  # Comfortable = green
+                        display.set_pixel(1, y, 100, 255, 0)
+                    else:
+                        display.set_pixel(0, y, 255, 0, 0)  # Hot = red
+                        display.set_pixel(1, y, 255, 100, 0)
+            
+            # Humidity bar graph (right side)
+            humidity_height = int(humidity / 100 * 7)
+            for y in range(8):
+                if y >= (7 - humidity_height):
+                    # Blue gradient for humidity
+                    display.set_pixel(7, y, 0, 150, 255)
+                    display.set_pixel(6, y, 50, 200, 255)
+            
+            # Center decoration - pulsing dot
+            import time
+            pulse = int(abs(math.sin(time.time() * 2)) * 255)
+            display.set_pixel(4, 3, pulse, pulse, pulse)
+            display.set_pixel(4, 4, pulse, pulse, pulse)
     else:
         display.clear()
 
 
 def render_sense_hat_idle():
-    """Render idle screen on Sense HAT - show orientation/motion"""
+    """Render idle screen on Sense HAT - animated patterns"""
     global display
+    import time
+    import random
     
-    try:
-        # Get accelerometer data for tilt visualization
-        accel = display.get_accelerometer_raw()
-        x = accel['x']
-        y = accel['y']
-        
-        # Map acceleration to pixel position (center at 4,4)
-        pixel_x = int(4 + x * 3)
-        pixel_y = int(4 - y * 3)
-        
-        # Clamp to 0-7 range
-        pixel_x = max(0, min(7, pixel_x))
-        pixel_y = max(0, min(7, pixel_y))
-        
-        # Clear and show a dot representing tilt direction
+    # Cycle through different animations
+    animation_cycle = int(time.time() / 10) % 4  # Change every 10 seconds
+    
+    if animation_cycle == 0:
+        # Spiral animation
         display.clear()
-        display.set_pixel(pixel_x, pixel_y, 100, 100, 255)
+        t = time.time() * 3
+        spiral_order = [
+            (3,3), (4,3), (4,4), (3,4), (2,4), (2,3), (2,2), (3,2), (4,2), (5,2),
+            (5,3), (5,4), (5,5), (4,5), (3,5), (2,5), (1,5), (1,4), (1,3), (1,2),
+            (1,1), (2,1), (3,1), (4,1), (5,1), (6,1), (6,2), (6,3), (6,4), (6,5),
+            (6,6), (5,6), (4,6), (3,6), (2,6)
+        ]
         
-        # Add center reference point
-        display.set_pixel(4, 4, 50, 50, 50)
-    except:
-        # If gyro not available, just clear
+        for i, (x, y) in enumerate(spiral_order):
+            if (t + i) % len(spiral_order) < 8:
+                intensity = int(((8 - ((t + i) % len(spiral_order))) / 8) * 255)
+                display.set_pixel(x, y, intensity, 0, 255 - intensity)
+    
+    elif animation_cycle == 1:
+        # Rain drops falling
         display.clear()
+        t = int(time.time() * 4)
+        for x in range(8):
+            y = (t + x * 2) % 10
+            if y < 8:
+                display.set_pixel(x, y, 0, 100, 255)
+            if y > 0 and y - 1 < 8:
+                display.set_pixel(x, y - 1, 0, 50, 150)
+    
+    elif animation_cycle == 2:
+        # Breathing effect (whole display pulses)
+        display.clear()
+        pulse = int(abs(math.sin(time.time() * 1.5)) * 200)
+        for x in range(8):
+            for y in range(8):
+                # Create radial pattern
+                dist = math.sqrt((x - 3.5)**2 + (y - 3.5)**2)
+                if dist < 4:
+                    intensity = int(pulse * (1 - dist/4))
+                    display.set_pixel(x, y, intensity, 0, intensity)
+    
+    else:
+        # Matrix-style falling code
+        display.clear()
+        t = int(time.time() * 5)
+        for x in range(8):
+            # Each column falls at different speed
+            y = (t + x) % 12
+            if y < 8:
+                display.set_pixel(x, y, 0, 255, 0)
+            if y > 0 and y - 1 < 8:
+                display.set_pixel(x, y - 1, 0, 150, 0)
+            if y > 1 and y - 2 < 8:
+                display.set_pixel(x, y - 2, 0, 50, 0)
 
 
 def update_display():

@@ -2077,36 +2077,102 @@
                 if (data.orientation || data.accelerometer || data.gyroscope || data.magnetometer) {
                     document.getElementById('advancedSensors').style.display = 'block';
                     
-                    // Update orientation
+                    // Update orientation (make it human-friendly)
                     if (data.orientation) {
+                        const pitch = data.orientation.pitch;
+                        const roll = data.orientation.roll;
+                        const yaw = data.orientation.yaw;
+                        
+                        // Determine device position
+                        let position = '';
+                        if (Math.abs(pitch) < 15 && Math.abs(roll) < 15) {
+                            position = '📱 Flat';
+                        } else if (pitch > 45) {
+                            position = '⬆️ Tilted Up';
+                        } else if (pitch < -45) {
+                            position = '⬇️ Tilted Down';
+                        } else if (roll > 45) {
+                            position = '↪️ Tilted Right';
+                        } else if (roll < -45) {
+                            position = '↩️ Tilted Left';
+                        } else {
+                            position = '📐 Angled';
+                        }
+                        
+                        // Compass direction
+                        const directions = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
+                        const dirIndex = Math.round(yaw / 45) % 8;
+                        const direction = directions[dirIndex];
+                        
                         document.getElementById('orientationData').innerHTML = 
-                            `P: ${data.orientation.pitch.toFixed(1)}°<br>` +
-                            `R: ${data.orientation.roll.toFixed(1)}°<br>` +
-                            `Y: ${data.orientation.yaw.toFixed(1)}°`;
+                            `${position}<br>` +
+                            `🧭 Facing: ${direction} (${yaw.toFixed(0)}°)`;
                     }
                     
-                    // Update accelerometer
+                    // Update accelerometer (detect movement)
                     if (data.accelerometer) {
+                        const x = data.accelerometer.x;
+                        const y = data.accelerometer.y;
+                        const z = data.accelerometer.z;
+                        const total = Math.sqrt(x*x + y*y + z*z);
+                        const movement = Math.abs(total - 1.0);
+                        
+                        let status = '';
+                        if (movement < 0.05) {
+                            status = '🟢 Still';
+                        } else if (movement < 0.2) {
+                            status = '🟡 Moving';
+                        } else {
+                            status = '🔴 Shaking!';
+                        }
+                        
                         document.getElementById('accelData').innerHTML = 
-                            `X: ${data.accelerometer.x.toFixed(2)}g<br>` +
-                            `Y: ${data.accelerometer.y.toFixed(2)}g<br>` +
-                            `Z: ${data.accelerometer.z.toFixed(2)}g`;
+                            `${status}<br>` +
+                            `Force: ${total.toFixed(2)}g`;
                     }
                     
-                    // Update gyroscope
+                    // Update gyroscope (detect rotation)
                     if (data.gyroscope) {
+                        const x = Math.abs(data.gyroscope.x);
+                        const y = Math.abs(data.gyroscope.y);
+                        const z = Math.abs(data.gyroscope.z);
+                        const maxRotation = Math.max(x, y, z);
+                        
+                        let status = '';
+                        if (maxRotation < 1) {
+                            status = '⚪ Stationary';
+                        } else if (maxRotation < 10) {
+                            status = '🔵 Slow Turn';
+                        } else if (maxRotation < 50) {
+                            status = '🟠 Turning';
+                        } else {
+                            status = '🔴 Spinning!';
+                        }
+                        
                         document.getElementById('gyroData').innerHTML = 
-                            `X: ${data.gyroscope.x.toFixed(2)}°/s<br>` +
-                            `Y: ${data.gyroscope.y.toFixed(2)}°/s<br>` +
-                            `Z: ${data.gyroscope.z.toFixed(2)}°/s`;
+                            `${status}<br>` +
+                            `Speed: ${maxRotation.toFixed(1)}°/s`;
                     }
                     
-                    // Update magnetometer
+                    // Update magnetometer (show field strength)
                     if (data.magnetometer) {
+                        const x = data.magnetometer.x;
+                        const y = data.magnetometer.y;
+                        const z = data.magnetometer.z;
+                        const strength = Math.sqrt(x*x + y*y + z*z);
+                        
+                        let status = '';
+                        if (strength < 30) {
+                            status = '🧲 Weak Field';
+                        } else if (strength < 80) {
+                            status = '🧲 Normal Field';
+                        } else {
+                            status = '🧲 Strong Field!';
+                        }
+                        
                         document.getElementById('compassData').innerHTML = 
-                            `X: ${data.magnetometer.x.toFixed(0)}µT<br>` +
-                            `Y: ${data.magnetometer.y.toFixed(0)}µT<br>` +
-                            `Z: ${data.magnetometer.z.toFixed(0)}µT`;
+                            `${status}<br>` +
+                            `Strength: ${strength.toFixed(0)}µT`;
                     }
                 }
             } catch (error) {
