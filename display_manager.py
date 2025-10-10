@@ -16,7 +16,7 @@ display = None
 display_config = {}
 current_screen = 0
 display_enabled = False
-current_brightness = 1  # 0=low_light, 1=normal (False/True for low_light)
+current_brightness = 5  # Brightness level 1-8 (8 different levels)
 showing_control_overlay = False
 control_overlay_type = None  # 'brightness' or 'volume'
 control_overlay_time = 0
@@ -73,9 +73,9 @@ def init_display():
             from sense_hat import SenseHat
             
             display = SenseHat()
-            display.low_light = True  # Reduce brightness
             display.rotation = 180  # Rotate display 180 degrees
             display.clear()
+            # Set initial brightness (will be controlled by apply_brightness)
             
             print("✓ Sense HAT LED matrix initialized (8x8, rotated 180°)")
             display_enabled = True
@@ -434,46 +434,63 @@ def render_sense_hat_playing():
 
 
 def render_sense_hat_sensor():
-    """Render sensor data on Sense HAT with animated temperature gauge"""
+    """Render sensor data on Sense HAT with thermometer and droplet icons"""
     global display, sensor_data_ref
+    display.clear()
     
     if sensor_data_ref and sensor_data_ref.get('sensor_available'):
         temp = sensor_data_ref.get('temperature')
         humidity = sensor_data_ref.get('humidity')
         
         if temp:
-            display.clear()
-            
-            # Temperature bar graph (left side)
-            temp_height = int((temp - 10) / 30 * 7)  # Map 10-40°C to 0-7 pixels
-            temp_height = max(0, min(7, temp_height))
-            
-            for y in range(8):
-                if y >= (7 - temp_height):
-                    # Color changes with temperature
-                    if temp < 18:
-                        display.set_pixel(0, y, 0, 0, 255)  # Cold = blue
-                        display.set_pixel(1, y, 0, 100, 255)
-                    elif temp < 25:
-                        display.set_pixel(0, y, 0, 255, 0)  # Comfortable = green
-                        display.set_pixel(1, y, 100, 255, 0)
-                    else:
-                        display.set_pixel(0, y, 255, 0, 0)  # Hot = red
-                        display.set_pixel(1, y, 255, 100, 0)
-            
-            # Humidity bar graph (right side)
-            humidity_height = int(humidity / 100 * 7)
-            for y in range(8):
-                if y >= (7 - humidity_height):
-                    # Blue gradient for humidity
-                    display.set_pixel(7, y, 0, 150, 255)
-                    display.set_pixel(6, y, 50, 200, 255)
-            
-            # Center decoration - pulsing dot
             import time
-            pulse = int(abs(math.sin(time.time() * 2)) * 255)
-            display.set_pixel(4, 3, pulse, pulse, pulse)
-            display.set_pixel(4, 4, pulse, pulse, pulse)
+            pulse = int(abs(math.sin(time.time() * 2)) * 128) + 127
+            
+            # Left side: Thermometer icon
+            thermometer = [
+                [0,0,1,0,0,0,0,0],
+                [0,0,1,0,0,0,0,0],
+                [0,0,1,0,0,0,0,0],
+                [0,0,1,0,0,0,0,0],
+                [0,1,1,1,0,0,0,0],
+                [1,1,1,1,1,0,0,0],
+                [1,1,1,1,1,0,0,0],
+                [0,1,1,1,0,0,0,0]
+            ]
+            
+            # Temperature color based on value
+            if temp < 18:
+                temp_color = (0, 100, pulse)  # Blue - cold (pulsing)
+            elif temp < 25:
+                temp_color = (0, pulse, 100)  # Green - comfortable (pulsing)
+            else:
+                temp_color = (pulse, 50, 0)  # Red - hot (pulsing)
+            
+            for y in range(8):
+                for x in range(5):
+                    if thermometer[y][x]:
+                        display.set_pixel(x, y, *temp_color)
+            
+            # Right side: Water droplet icon
+            droplet = [
+                [0,0,0,0,0,1,0,0],
+                [0,0,0,0,1,1,1,0],
+                [0,0,0,1,1,1,1,0],
+                [0,0,1,1,1,1,1,1],
+                [0,0,1,1,1,1,1,1],
+                [0,0,1,1,1,1,1,1],
+                [0,0,0,1,1,1,1,0],
+                [0,0,0,0,1,1,0,0]
+            ]
+            
+            # Humidity color - blue with varying intensity
+            hum_intensity = int((humidity / 100) * pulse)
+            hum_color = (0, hum_intensity, 255)
+            
+            for y in range(8):
+                for x in range(8):
+                    if droplet[y][x]:
+                        display.set_pixel(x, y, *hum_color)
     else:
         display.clear()
 
@@ -504,6 +521,35 @@ def render_sense_hat_idle():
                 display.set_pixel(x, y, pulse, 0, pulse // 2)
 
 
+def apply_brightness():
+    """Apply current brightness level to display by dimming all pixels"""
+    global display, current_brightness
+    
+    if not display or not display_enabled:
+        return
+    
+    display_type = display_config.get('type', 'ssd1306')
+    if display_type != 'sense_hat':
+        return
+    
+    # Get current pixels
+    pixels = display.get_pixels()
+    
+    # Calculate brightness multiplier (1-8 maps to 0.1-1.0)
+    brightness_multiplier = current_brightness / 8.0
+    
+    # Apply brightness to all pixels
+    new_pixels = []
+    for pixel in pixels:
+        r, g, b = pixel
+        new_r = int(r * brightness_multiplier)
+        new_g = int(g * brightness_multiplier)
+        new_b = int(b * brightness_multiplier)
+        new_pixels.append((new_r, new_g, new_b))
+    
+    display.set_pixels(new_pixels)
+
+
 def render_brightness_overlay(brightness_level):
     """Show brightness control overlay with sun icon"""
     global display
@@ -521,18 +567,16 @@ def render_brightness_overlay(brightness_level):
         [0,0,0,1,1,0,0,0]
     ]
     
-    # Draw sun
-    brightness = int(brightness_level * 255)
-    for y in range(8):
+    # Draw sun - brightness affects the sun brightness
+    sun_brightness = int((brightness_level / 8) * 255)
+    for y in range(7):  # Don't draw on bottom row
         for x in range(8):
             if sun[y][x]:
-                display.set_pixel(x, y, brightness, brightness, 0)
+                display.set_pixel(x, y, sun_brightness, sun_brightness, 0)
     
-    # Bottom row shows level (0-8 pixels)
-    level_pixels = int(brightness_level * 8)
-    # Clear bottom row first
+    # Bottom row shows level (1-8 pixels)
     for x in range(8):
-        if x < level_pixels:
+        if x < brightness_level:
             display.set_pixel(x, 7, 255, 200, 0)
 
 
@@ -584,12 +628,10 @@ def handle_joystick_events():
         # Check joystick events
         for event in display.stick.get_events():
             if event.action == ACTION_PRESSED:
-                # UP/DOWN = Brightness control
+                # UP/DOWN = Brightness control (8 levels: 1-8)
                 if event.direction == "up":
                     # Increase brightness
-                    if display.low_light:
-                        display.low_light = False
-                        current_brightness = 1.0
+                    current_brightness = min(8, current_brightness + 1)
                     
                     showing_control_overlay = True
                     control_overlay_type = 'brightness'
@@ -598,9 +640,7 @@ def handle_joystick_events():
                     
                 elif event.direction == "down":
                     # Decrease brightness
-                    if not display.low_light:
-                        display.low_light = True
-                        current_brightness = 0.3
+                    current_brightness = max(1, current_brightness - 1)
                     
                     showing_control_overlay = True
                     control_overlay_type = 'brightness'
@@ -674,6 +714,9 @@ def update_display():
                 render_sense_hat_sensor()
             else:
                 render_sense_hat_idle()
+            
+            # Apply brightness adjustment to rendered screen
+            apply_brightness()
         
         elif display_type == 'ssd1306':
             # Create image for OLED
