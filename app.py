@@ -14,6 +14,15 @@ import yt_dlp
 from pathlib import Path
 from mutagen import File as MutagenFile
 
+# Pi HAT modules
+try:
+    import sensor_manager
+    import display_manager
+    HAT_AVAILABLE = True
+except ImportError as e:
+    print(f"⚠ Pi HAT modules not available: {e}")
+    HAT_AVAILABLE = False
+
 app = Flask(__name__, static_folder='static', static_url_path='')
 CORS(app)
 
@@ -93,6 +102,15 @@ def play_song(song_path, repeat=False, volume=None):
                 current_playing = song_path
                 current_playing_start_time = datetime.now()
                 print(f"Playing: {song_path} (repeat: {repeat}, volume: {volume if volume else 'default'}, duration: {current_song_duration}s)")
+                
+                # Update display manager if available
+                if HAT_AVAILABLE:
+                    display_manager.update_playback_state(
+                        playing=True,
+                        current_song=song_path,
+                        position=0,
+                        duration=current_song_duration if current_song_duration else 0
+                    )
             else:
                 print(f"Song not found: {full_path}")
         except Exception as e:
@@ -137,6 +155,10 @@ def reload_all_schedules():
                 schedule.get('volume'),
                 schedule.get('days_of_week')
             )
+    
+    # Update display manager if available
+    if HAT_AVAILABLE:
+        display_manager.update_schedules(schedules)
 
 
 def backup_schedules():
@@ -199,6 +221,17 @@ def get_system_health():
         'bluetooth_connected': check_bluetooth_connection(),
         'warnings': system_warnings
     }
+    
+    # Add environmental sensor data if available
+    if HAT_AVAILABLE:
+        sensor_data = sensor_manager.get_sensor_data()
+        health['room_temperature'] = sensor_data.get('temperature')
+        health['room_humidity'] = sensor_data.get('humidity')
+        health['sensor_available'] = sensor_data.get('sensor_available', False)
+    else:
+        health['room_temperature'] = None
+        health['room_humidity'] = None
+        health['sensor_available'] = False
     
     # Check for warnings
     if health['cpu_percent'] > 80:
@@ -571,6 +604,10 @@ def stop_playback():
         current_playing = None
         current_playing_start_time = None
         current_song_duration = None
+        
+        # Update display manager if available
+        if HAT_AVAILABLE:
+            display_manager.update_playback_state(playing=False, current_song=None)
     return jsonify({'message': 'Playback stopped'})
 
 
@@ -682,6 +719,21 @@ def reconnect_bluetooth():
     return jsonify({'error': 'Reconnection failed'}), 500
 
 
+@app.route('/api/sensors', methods=['GET'])
+def get_sensor_data():
+    """Get environmental sensor data (temperature, humidity)"""
+    if HAT_AVAILABLE:
+        return jsonify(sensor_manager.get_sensor_data())
+    else:
+        return jsonify({
+            'temperature': None,
+            'humidity': None,
+            'pressure': None,
+            'last_update': None,
+            'sensor_available': False
+        })
+
+
 if __name__ == '__main__':
     # Load all schedules on startup
     reload_all_schedules()
@@ -700,6 +752,25 @@ if __name__ == '__main__':
     print(f"Schedules loaded: {len(load_schedules())}")
     print("Daily backup: 3:00 AM")
     print("Health check: Every 5 minutes")
+    
+    # Initialize Pi HAT if available
+    if HAT_AVAILABLE:
+        print("\n🎩 Initializing Pi HAT...")
+        
+        # Start sensor thread
+        sensor_thread = sensor_manager.start_sensor_thread()
+        if sensor_thread:
+            print("✓ Environmental sensors active")
+        
+        # Start display thread (pass schedules and sensor data)
+        schedules_list = load_schedules()
+        sensor_data_dict = sensor_manager.sensor_data
+        display_thread = display_manager.start_display_thread(schedules_list, sensor_data_dict)
+        if display_thread:
+            print("✓ OLED display active")
+    else:
+        print("\n⚠ Pi HAT modules not loaded - running without display/sensors")
+    
     print("=" * 50)
     
     # Run the Flask app

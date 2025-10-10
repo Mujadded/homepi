@@ -10,6 +10,9 @@ A beautiful, modern web-based music scheduler for Raspberry Pi that allows you t
 - 🎚️ **Volume Control**: Adjust playback volume via web interface
 - 🌐 **Web Interface**: Beautiful, responsive web UI for managing everything
 - 📱 **Mobile Friendly**: Works on phones, tablets, and desktops
+- 🎩 **Pi HAT Support**: Optional OLED display and environmental sensors (temperature, humidity)
+- ⏱️ **Countdown Display**: See time remaining until next scheduled song
+- 📊 **System Monitoring**: CPU, memory, disk, temperature, and Bluetooth status
 
 ## Requirements
 
@@ -127,6 +130,80 @@ hostname -I
 - **Resume**: Resume paused playback
 - **Stop**: Stop all playback
 - **Volume**: Use the slider to adjust volume (0-100%)
+
+## 🎩 Pi HAT Support (Optional)
+
+HomePi supports optional Pi HAT hardware for enhanced functionality:
+
+### Features
+
+- **OLED Display**: Shows now playing, next schedule countdown, temperature/humidity
+- **Environmental Sensors**: Monitor room temperature and humidity (BME280 or DHT22)
+- **Countdown Timer**: Physical display of time until next scheduled song
+- **Rotating Screens**: Display automatically cycles through information
+
+### Supported Hardware
+
+- **SSD1306 OLED Display** (128x64 or 128x32, I2C)
+- **BME280 Sensor** (temperature, humidity, pressure, I2C)
+- **DHT22 Sensor** (temperature, humidity, GPIO)
+- **Sense HAT** (all-in-one solution)
+
+### Quick Setup
+
+1. Connect your Pi HAT hardware (see [HAT_SETUP.md](HAT_SETUP.md) for wiring)
+
+2. Run the setup script:
+   ```bash
+   chmod +x setup-hat.sh
+   ./setup-hat.sh
+   ```
+
+3. Configure your hardware in `config.json`:
+   ```json
+   {
+       "display": {
+           "enabled": true,
+           "type": "ssd1306",
+           "i2c_address": "0x3C",
+           "width": 128,
+           "height": 64,
+           "rotation_interval": 5
+       },
+       "sensor": {
+           "enabled": true,
+           "type": "bme280",
+           "i2c_address": "0x76",
+           "read_interval": 30
+       }
+   }
+   ```
+
+4. Restart the service:
+   ```bash
+   sudo systemctl restart homepi.service
+   ```
+
+### Verify I2C Devices
+
+Check connected I2C devices:
+```bash
+sudo i2cdetect -y 1
+```
+
+Look for:
+- `0x3C` or `0x3D` = SSD1306 OLED display
+- `0x76` or `0x77` = BME280 sensor
+
+### Web Interface Integration
+
+The sensor data and countdown are automatically displayed on the web interface at the top of the page, showing:
+- Real-time countdown to next scheduled song
+- Current room temperature
+- Current room humidity
+- Warning if HAT is not detected
+
+For detailed setup instructions, wiring diagrams, and troubleshooting, see **[HAT_SETUP.md](HAT_SETUP.md)**.
 
 ## Running at Startup (Auto-start)
 
