@@ -312,14 +312,13 @@ def render_combined_screen(draw, width, height):
 
 
 def render_sense_hat_countdown():
-    """Render countdown on Sense HAT with visual hourglass animation"""
+    """Screen 1: Hourglass showing actual countdown to next song"""
     global display
     
     next_schedule, countdown = get_next_schedule()
     display.clear()
     
     if next_schedule and countdown:
-        # Visual hourglass filling up over time
         import time
         
         # Parse countdown
@@ -329,48 +328,76 @@ def render_sense_hat_countdown():
             minutes = int(parts[1])
             total_minutes = hours * 60 + minutes
             
-            # Calculate fill level (0-8 pixels)
-            if total_minutes > 60:
-                fill_level = 2  # Many hours = mostly empty
-            elif total_minutes > 30:
-                fill_level = 4  # Half hour
-            elif total_minutes > 10:
-                fill_level = 6  # Close
-            else:
-                fill_level = 8  # Very close!
+            # Animate sand falling - pulsing effect
+            pulse = (int(time.time() * 3) % 10) / 10.0
             
-            # Draw hourglass shape
-            hourglass = [
-                [1,1,1,1,1,1,1,1],  # Top
-                [0,1,1,1,1,1,1,0],
+            # Hourglass outline
+            outline = [
+                [1,1,1,1,1,1,1,1],  # Top rim
+                [0,1,1,1,1,1,1,0],  # Top funnel
                 [0,0,1,1,1,1,0,0],
                 [0,0,0,1,1,0,0,0],  # Narrow middle
                 [0,0,1,1,1,1,0,0],
-                [0,1,1,1,1,1,1,0],
-                [1,1,1,1,1,1,1,1],  # Bottom
-                [1,1,1,1,1,1,1,1]
+                [0,1,1,1,1,1,1,0],  # Bottom funnel
+                [1,1,1,1,1,1,1,1],  # Bottom rim
+                [0,0,0,0,0,0,0,0]
             ]
+            
+            # Calculate how full bottom chamber should be based on time remaining
+            # More time = more sand in top, less time = more sand in bottom
+            max_time = 120  # 2 hours max for scale
+            time_ratio = min(1.0, total_minutes / max_time)
+            
+            # Bottom chamber sand level (inverted - less time = more sand)
+            bottom_fill = int((1.0 - time_ratio) * 4)  # 0-4 rows of sand in bottom
+            
+            # Top chamber sand level
+            top_fill = int(time_ratio * 3)  # 0-3 rows of sand in top
             
             # Color based on urgency
             if total_minutes < 10:
-                color = (255, 0, 0)  # Red - urgent!
+                sand_color = (255, 50, 0)  # Bright red - urgent!
+                glow = int(pulse * 200)
+                outline_color = (255, glow, 0)
             elif total_minutes < 30:
-                color = (255, 200, 0)  # Orange
+                sand_color = (255, 150, 0)  # Orange
+                outline_color = (200, 150, 50)
             else:
-                color = (0, 200, 255)  # Blue - plenty of time
+                sand_color = (100, 200, 255)  # Blue - plenty of time
+                outline_color = (50, 100, 150)
             
-            # Draw hourglass and fill from bottom
+            # Draw hourglass outline
             for y in range(8):
                 for x in range(8):
-                    if hourglass[y][x]:
-                        # Fill from bottom up
-                        if y >= (8 - fill_level):
-                            display.set_pixel(x, y, *color)
-                        else:
-                            # Empty part - dim outline
-                            display.set_pixel(x, y, color[0]//4, color[1]//4, color[2]//4)
+                    if outline[y][x]:
+                        display.set_pixel(x, y, *outline_color)
+            
+            # Draw sand in top chamber (rows 1-2)
+            if top_fill >= 1:
+                for x in range(2, 6):
+                    display.set_pixel(x, 1, *sand_color)
+            if top_fill >= 2:
+                for x in range(3, 5):
+                    display.set_pixel(x, 2, *sand_color)
+            
+            # Draw sand falling through middle (animated)
+            if int(time.time() * 2) % 2 == 0:
+                display.set_pixel(3, 3, *sand_color)
+                display.set_pixel(4, 3, *sand_color)
+            
+            # Draw sand in bottom chamber (rows 5-6)
+            bottom_rows = [
+                [(1,6), (2,6), (3,6), (4,6), (5,6), (6,6)],  # Bottom row
+                [(2,5), (3,5), (4,5), (5,5)],  # Second from bottom
+                [(2,5), (3,5), (4,5), (5,5)],  # Third from bottom
+                [(3,4), (4,4)]  # Fourth from bottom
+            ]
+            
+            for i in range(min(bottom_fill, len(bottom_rows))):
+                for x, y in bottom_rows[i]:
+                    display.set_pixel(x, y, *sand_color)
     else:
-        # Checkmark - no schedules today
+        # Checkmark - no schedules
         checkmark = [
             [0,0,0,0,0,0,0,0],
             [0,0,0,0,0,0,1,0],
@@ -388,34 +415,44 @@ def render_sense_hat_countdown():
 
 
 def render_sense_hat_playing():
-    """Render playing status on Sense HAT with clean visual icons"""
-    global display
+    """Screen 2: Music visualizer + progress bar when playing"""
+    global display, playback_state
     display.clear()
     
     if playback_state.get('playing'):
-        # Pulsing music note
         import time
-        pulse = int(abs(math.sin(time.time() * 3)) * 255)
         
-        # Music note icon
-        music_note = [
-            [0,0,0,0,0,1,1,0],
-            [0,0,0,0,0,1,1,0],
-            [0,0,0,0,0,1,1,0],
-            [0,0,0,0,0,1,1,0],
-            [0,1,1,0,0,1,1,0],
-            [1,1,1,1,1,1,1,1],
-            [1,1,1,1,1,1,1,1],
-            [0,1,1,0,0,1,1,0]
-        ]
+        # Get progress (position/duration)
+        position = playback_state.get('position', 0)
+        duration = playback_state.get('duration', 1)
+        progress = min(1.0, position / duration) if duration > 0 else 0
         
-        for y in range(8):
-            for x in range(8):
-                if music_note[y][x]:
-                    # Pulsing green
-                    display.set_pixel(x, y, 0, pulse, 0)
+        # Top 6 rows: Animated visualizer bars
+        beat_time = time.time() * 4  # Animation speed
+        
+        for x in range(8):
+            # Each column bounces at different frequency
+            height = 3 + int(2 * abs(math.sin(beat_time + x * 0.7)))
+            
+            for y in range(6):
+                if y >= (6 - height):
+                    # Color gradient from bottom (green) to top (red)
+                    if y >= 4:
+                        display.set_pixel(x, y, 0, 200, 50)  # Green bottom
+                    elif y >= 2:
+                        display.set_pixel(x, y, 200, 200, 0)  # Yellow middle
+                    else:
+                        display.set_pixel(x, y, 255, 100, 0)  # Orange top
+        
+        # Row 7 (bottom): Progress bar
+        progress_pixels = int(progress * 8)
+        for x in range(8):
+            if x < progress_pixels:
+                display.set_pixel(x, 7, 0, 150, 255)  # Blue progress
+            else:
+                display.set_pixel(x, 7, 30, 30, 30)  # Dark gray remaining
     else:
-        # Pause symbol
+        # Not playing - show pause icon
         pause_icon = [
             [0,0,0,0,0,0,0,0],
             [0,1,1,0,0,1,1,0],
@@ -433,92 +470,98 @@ def render_sense_hat_playing():
                     display.set_pixel(x, y, 100, 100, 100)
 
 
-def render_sense_hat_sensor():
-    """Render sensor data on Sense HAT with thermometer and droplet icons"""
+def render_sense_hat_temperature():
+    """Screen 3: Heart colored by temperature (blue=cold, red=hot)"""
     global display, sensor_data_ref
     display.clear()
     
     if sensor_data_ref and sensor_data_ref.get('sensor_available'):
         temp = sensor_data_ref.get('temperature')
-        humidity = sensor_data_ref.get('humidity')
         
         if temp:
             import time
             pulse = int(abs(math.sin(time.time() * 2)) * 128) + 127
             
-            # Left side: Thermometer icon
-            thermometer = [
-                [0,0,1,0,0,0,0,0],
-                [0,0,1,0,0,0,0,0],
-                [0,0,1,0,0,0,0,0],
-                [0,0,1,0,0,0,0,0],
-                [0,1,1,1,0,0,0,0],
-                [1,1,1,1,1,0,0,0],
-                [1,1,1,1,1,0,0,0],
-                [0,1,1,1,0,0,0,0]
+            # Heart shape
+            heart = [
+                [0,1,1,0,0,1,1,0],
+                [1,1,1,1,1,1,1,1],
+                [1,1,1,1,1,1,1,1],
+                [1,1,1,1,1,1,1,1],
+                [0,1,1,1,1,1,1,0],
+                [0,0,1,1,1,1,0,0],
+                [0,0,0,1,1,0,0,0],
+                [0,0,0,0,0,0,0,0]
             ]
             
-            # Temperature color based on value
-            if temp < 18:
-                temp_color = (0, 100, pulse)  # Blue - cold (pulsing)
-            elif temp < 25:
-                temp_color = (0, pulse, 100)  # Green - comfortable (pulsing)
+            # Temperature-based color
+            if temp < 16:
+                # Very cold - bright blue
+                heart_color = (0, 100, pulse)
+            elif temp < 18:
+                # Cold - light blue
+                heart_color = (0, pulse // 2, pulse)
+            elif temp < 22:
+                # Cool - cyan
+                heart_color = (0, pulse, pulse)
+            elif temp < 26:
+                # Comfortable - green/yellow
+                heart_color = (pulse // 2, pulse, 0)
+            elif temp < 28:
+                # Warm - orange
+                heart_color = (pulse, pulse // 2, 0)
             else:
-                temp_color = (pulse, 50, 0)  # Red - hot (pulsing)
+                # Hot - red
+                heart_color = (pulse, 0, 0)
             
-            for y in range(8):
-                for x in range(5):
-                    if thermometer[y][x]:
-                        display.set_pixel(x, y, *temp_color)
-            
-            # Right side: Water droplet icon
-            droplet = [
-                [0,0,0,0,0,1,0,0],
-                [0,0,0,0,1,1,1,0],
-                [0,0,0,1,1,1,1,0],
-                [0,0,1,1,1,1,1,1],
-                [0,0,1,1,1,1,1,1],
-                [0,0,1,1,1,1,1,1],
-                [0,0,0,1,1,1,1,0],
-                [0,0,0,0,1,1,0,0]
-            ]
-            
-            # Humidity color - blue with varying intensity
-            hum_intensity = int((humidity / 100) * pulse)
-            hum_color = (0, hum_intensity, 255)
-            
+            # Draw pulsing heart
             for y in range(8):
                 for x in range(8):
-                    if droplet[y][x]:
-                        display.set_pixel(x, y, *hum_color)
+                    if heart[y][x]:
+                        display.set_pixel(x, y, *heart_color)
     else:
         display.clear()
 
 
-def render_sense_hat_idle():
-    """Render idle screen - simple heart pulse"""
-    global display
-    import time
+def render_sense_hat_humidity():
+    """Screen 4: Water droplet filling up based on humidity"""
+    global display, sensor_data_ref
     display.clear()
     
-    # Pulsing heart
-    pulse = int(abs(math.sin(time.time() * 2)) * 255)
-    
-    heart = [
-        [0,0,1,1,0,1,1,0],
-        [0,1,1,1,1,1,1,1],
-        [0,1,1,1,1,1,1,1],
-        [0,1,1,1,1,1,1,1],
-        [0,0,1,1,1,1,1,0],
-        [0,0,0,1,1,1,0,0],
-        [0,0,0,0,1,0,0,0],
-        [0,0,0,0,0,0,0,0]
-    ]
-    
-    for y in range(8):
-        for x in range(8):
-            if heart[y][x]:
-                display.set_pixel(x, y, pulse, 0, pulse // 2)
+    if sensor_data_ref and sensor_data_ref.get('sensor_available'):
+        humidity = sensor_data_ref.get('humidity')
+        
+        if humidity:
+            # Droplet shape with fill levels (bottom to top)
+            droplet = [
+                [0,0,0,1,1,0,0,0],  # Row 0 (top point)
+                [0,0,1,1,1,1,0,0],  # Row 1
+                [0,1,1,1,1,1,1,0],  # Row 2
+                [0,1,1,1,1,1,1,0],  # Row 3
+                [1,1,1,1,1,1,1,1],  # Row 4
+                [1,1,1,1,1,1,1,1],  # Row 5
+                [0,1,1,1,1,1,1,0],  # Row 6
+                [0,0,1,1,1,1,0,0]   # Row 7 (bottom)
+            ]
+            
+            # Calculate fill level (0-8 based on humidity 0-100%)
+            fill_level = int((humidity / 100) * 8)
+            
+            # Draw droplet with fill
+            for y in range(8):
+                for x in range(8):
+                    if droplet[y][x]:
+                        # Fill from bottom up
+                        if y >= (8 - fill_level):
+                            # Filled part - bright blue
+                            display.set_pixel(x, y, 0, 150, 255)
+                        else:
+                            # Empty part - dim outline
+                            display.set_pixel(x, y, 0, 30, 60)
+    else:
+        display.clear()
+
+
 
 
 def apply_brightness():
@@ -705,15 +748,15 @@ def update_display():
             showing_control_overlay = False
         
         if display_type == 'sense_hat':
-            # Sense HAT LED matrix (8x8) - simple visualizations
+            # Sense HAT LED matrix (8x8) - 4 functional screens
             if current_screen == 0:
-                render_sense_hat_countdown()
+                render_sense_hat_countdown()  # Hourglass countdown
             elif current_screen == 1:
-                render_sense_hat_playing()
+                render_sense_hat_playing()  # Visualizer + progress
             elif current_screen == 2:
-                render_sense_hat_sensor()
+                render_sense_hat_temperature()  # Heart colored by temp
             else:
-                render_sense_hat_idle()
+                render_sense_hat_humidity()  # Droplet filled by humidity
             
             # Apply brightness adjustment to rendered screen
             apply_brightness()
