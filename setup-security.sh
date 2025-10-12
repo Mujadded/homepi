@@ -108,20 +108,30 @@ print_info "Installing Coral TPU libraries..."
 
 # Check if libedgetpu is already installed
 if ! dpkg -l | grep -q libedgetpu1; then
-    print_info "Adding Coral repository..."
+    print_info "Installing Coral TPU libraries (alternative method)..."
     
-    # Modern way to add GPG key (for Debian Bookworm/Trixie)
-    sudo mkdir -p /usr/share/keyrings
-    curl -fsSL https://packages.cloud.google.com/apt/doc/apt-key.gpg | sudo gpg --dearmor -o /usr/share/keyrings/coral-edgetpu.gpg
+    # Remove any existing repo file
+    sudo rm -f /etc/apt/sources.list.d/coral-edgetpu.list
     
-    # Add repository with signed-by
-    echo "deb [signed-by=/usr/share/keyrings/coral-edgetpu.gpg] https://packages.cloud.google.com/apt coral-edgetpu-stable main" | sudo tee /etc/apt/sources.list.d/coral-edgetpu.list
+    # For Debian Trixie, we'll install from the direct .deb packages
+    # This avoids GPG key issues with the repository
+    print_info "Downloading libedgetpu package..."
     
-    sudo apt-get update
+    cd /tmp
+    wget -q --show-progress https://github.com/google-coral/libedgetpu/releases/download/release-frogfish/libedgetpu1-std_16.0_arm64.deb
     
-    print_info "Installing libedgetpu (standard version)..."
-    sudo apt-get install -y libedgetpu1-std
-    print_success "Coral TPU libraries installed"
+    print_info "Installing libedgetpu..."
+    sudo dpkg -i libedgetpu1-std_16.0_arm64.deb || true
+    sudo apt-get install -f -y
+    
+    # Verify installation
+    if dpkg -l | grep -q libedgetpu1; then
+        print_success "Coral TPU libraries installed"
+    else
+        print_warning "Coral TPU installation incomplete - will try runtime installation"
+    fi
+    
+    cd -
 else
     print_success "Coral TPU libraries already installed"
 fi
