@@ -3,22 +3,20 @@ Flask-CORS==4.0.0
 APScheduler==3.10.4
 yt-dlp
 python-dotenv==1.0.0
-psutil==5.9.6
+psutil
 mutagen==1.47.0
 
 # Pi HAT Support (Sense HAT - currently disabled)
-sense-hat==2.6.0
-adafruit-circuitpython-ssd1306==2.12.14
-adafruit-circuitpython-bme280==2.6.22
-Pillow==10.1.0
-RPi.GPIO==0.7.1
+# sense-hat and Pillow should be installed from system packages
+adafruit-circuitpython-ssd1306
+adafruit-circuitpython-bme280
+RPi.GPIO
 
 # Security System Dependencies
-picamera2
+# picamera2 and opencv-python should be installed from system packages
 pantilthat
 pycoral
 tflite-runtime
-opencv-python
 pyserial
 python-telegram-bot==20.7
 numpy
