@@ -1,24 +1,18 @@
 """
-Object Detector for HomePi Security System
-Uses Coral TPU EdgeTPU for real-time object detection
+Object Detector Client for HomePi Security System
+Sends frames to remote AI service (Nvidia Jetson Orin) for inference
 """
 
 import json
 import time
 import os
+import base64
+import logging
 import numpy as np
+import requests
+from io import BytesIO
 
-# Coral TPU modules will be imported only when available
-coral_available = False
-try:
-    from pycoral.adapters import common
-    from pycoral.adapters import detect
-    from pycoral.utils.edgetpu import make_interpreter
-    coral_available = True
-except ImportError as e:
-    print(f"⚠ Coral TPU modules not available: {e}")
-
-# CV2 for preprocessing
+# OpenCV for image encoding
 cv2_available = False
 try:
     import cv2
@@ -26,28 +20,21 @@ try:
 except ImportError:
     print("⚠ OpenCV not available")
 
+# PIL as fallback
+PIL_available = False
+try:
+    from PIL import Image
+    PIL_available = True
+except ImportError:
+    print("⚠ PIL not available")
+
+logger = logging.getLogger(__name__)
+
 # Global detector state
-detector = None
-detector_config = {}
 detector_enabled = False
-labels = {}
-
-
-# COCO dataset labels (subset for common objects)
-COCO_LABELS = {
-    0: 'person',
-    1: 'bicycle',
-    2: 'car',
-    3: 'motorcycle',
-    4: 'airplane',
-    5: 'bus',
-    6: 'train',
-    7: 'truck',
-    8: 'boat',
-    16: 'dog',
-    17: 'cat',
-    18: 'bird'
-}
+detector_config = {}
+remote_url = None
+session = None
 
 
 def load_config():
@@ -62,94 +49,113 @@ def load_config():
     except Exception as e:
         print(f"Error loading detector config: {e}")
         return {
-            'model_path': 'models/ssd_mobilenet_v2_coco_quant_postprocess_edgetpu.tflite',
+            'remote_url': 'http://jetson.local:5001',
             'confidence_threshold': 0.6,
-            'detection_interval': 0.1,
+            'detection_timeout': 5,
             'classes_of_interest': ['car', 'person', 'motorcycle', 'bicycle', 'truck']
         }
 
 
-def load_labels(label_path=None):
-    """Load label file for model"""
-    global labels
+def init_detector(url=None):
+    """
+    Initialize connection to remote AI service
     
-    if label_path and os.path.exists(label_path):
-        try:
-            with open(label_path, 'r') as f:
-                labels = {i: line.strip() for i, line in enumerate(f.readlines())}
-            return labels
-        except Exception as e:
-            print(f"Error loading labels: {e}")
+    Args:
+        url: Remote inference server URL (e.g., 'http://jetson.local:5001')
     
-    # Use built-in COCO labels
-    labels = COCO_LABELS
-    return labels
-
-
-def init_detector(model_path=None):
-    """Initialize Coral TPU detector with TFLite model"""
-    global detector, detector_enabled, detector_config, labels
-    
-    if not coral_available:
-        print("Coral TPU modules not available")
-        return False
+    Returns:
+        bool: True if initialized successfully
+    """
+    global detector_enabled, detector_config, remote_url, session
     
     detector_config = load_config()
     
-    if not model_path:
-        model_path = detector_config.get('model_path', 'models/ssd_mobilenet_v2_coco_quant_postprocess_edgetpu.tflite')
+    if not url:
+        url = detector_config.get('remote_url', 'http://jetson.local:5001')
+    
+    remote_url = url.rstrip('/')
     
     try:
-        # Check if model exists
-        if not os.path.exists(model_path):
-            print(f"Model not found: {model_path}")
-            print("Please download the model or run setup script")
+        # Create persistent session for better performance
+        session = requests.Session()
+        session.headers.update({'Content-Type': 'application/json'})
+        
+        # Test connection to remote service
+        print(f"Connecting to remote AI service: {remote_url}")
+        response = session.get(f"{remote_url}/health", timeout=5)
+        
+        if response.status_code == 200:
+            info = response.json()
+            print(f"✓ Remote AI service connected")
+            print(f"  Service: {info.get('service', 'Unknown')}")
+            print(f"  Model: {info.get('model', 'Unknown')}")
+            print(f"  Device: {info.get('device', 'Unknown')}")
+            detector_enabled = True
+            return True
+        else:
+            print(f"Remote service returned status {response.status_code}")
             return False
-        
-        # Load interpreter on Edge TPU
-        print(f"Loading model: {model_path}")
-        detector = make_interpreter(model_path)
-        detector.allocate_tensors()
-        
-        # Load labels
-        label_path = model_path.replace('.tflite', '_labels.txt')
-        load_labels(label_path if os.path.exists(label_path) else None)
-        
-        detector_enabled = True
-        print(f"✓ Coral TPU detector initialized")
-        print(f"  Model: {os.path.basename(model_path)}")
-        print(f"  Labels: {len(labels)} classes")
-        
-        return True
-        
+            
+    except requests.exceptions.ConnectionError:
+        print(f"⚠ Could not connect to remote AI service at {remote_url}")
+        print("  Make sure the Jetson Orin inference server is running")
+        detector_enabled = False
+        return False
     except Exception as e:
-        print(f"Error initializing detector: {e}")
+        print(f"Error initializing remote detector: {e}")
         detector_enabled = False
         return False
 
 
-def preprocess_frame(frame, target_size=(300, 300)):
-    """Preprocess frame for model input"""
-    if not cv2_available:
-        return None
+def encode_frame(frame, quality=85):
+    """
+    Encode frame to JPEG and base64 for transmission
     
-    try:
-        # Resize to model input size
-        resized = cv2.resize(frame, target_size)
-        
-        # Convert RGB to BGR if needed (frame from camera is RGB)
-        # Model expects RGB, so no conversion needed
-        
-        return resized
-        
-    except Exception as e:
-        print(f"Error preprocessing frame: {e}")
-        return None
+    Args:
+        frame: numpy array (RGB format)
+        quality: JPEG quality (1-100)
+    
+    Returns:
+        str: Base64 encoded JPEG string
+    """
+    if cv2_available:
+        try:
+            # Convert RGB to BGR for OpenCV
+            bgr_frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+            
+            # Encode to JPEG
+            success, buffer = cv2.imencode('.jpg', bgr_frame, [cv2.IMWRITE_JPEG_QUALITY, quality])
+            if success:
+                # Encode to base64
+                jpg_bytes = buffer.tobytes()
+                b64_str = base64.b64encode(jpg_bytes).decode('utf-8')
+                return b64_str
+        except Exception as e:
+            print(f"Error encoding frame with OpenCV: {e}")
+    
+    # Fallback to PIL
+    if PIL_available:
+        try:
+            # Convert numpy to PIL Image
+            pil_img = Image.fromarray(frame.astype('uint8'), 'RGB')
+            
+            # Encode to JPEG
+            buffer = BytesIO()
+            pil_img.save(buffer, format='JPEG', quality=quality)
+            jpg_bytes = buffer.getvalue()
+            
+            # Encode to base64
+            b64_str = base64.b64encode(jpg_bytes).decode('utf-8')
+            return b64_str
+        except Exception as e:
+            print(f"Error encoding frame with PIL: {e}")
+    
+    return None
 
 
 def detect_objects(frame, threshold=None):
     """
-    Run object detection on frame
+    Run object detection on frame using remote AI service
     
     Args:
         frame: Input image (numpy array, RGB format)
@@ -166,72 +172,74 @@ def detect_objects(frame, threshold=None):
             ...
         ]
     """
-    global detector, detector_enabled, detector_config
+    global detector_enabled, detector_config, remote_url, session
     
-    if not detector or not detector_enabled:
+    if not detector_enabled or not session:
         return []
     
     if threshold is None:
         threshold = detector_config.get('confidence_threshold', 0.6)
     
     try:
-        # Get input details
-        input_details = detector.get_input_details()
-        input_shape = input_details[0]['shape']
-        
-        # Expected input shape: [1, height, width, 3]
-        target_height = input_shape[1]
-        target_width = input_shape[2]
-        
-        # Preprocess frame
-        processed = preprocess_frame(frame, (target_width, target_height))
-        if processed is None:
+        # Encode frame
+        b64_frame = encode_frame(frame, quality=85)
+        if not b64_frame:
+            print("Failed to encode frame")
             return []
         
-        # Set input tensor
-        common.set_input(detector, processed)
+        # Prepare request
+        payload = {
+            'image': b64_frame,
+            'threshold': threshold,
+            'classes': detector_config.get('classes_of_interest', [])
+        }
         
-        # Run inference
+        # Send to remote service
+        timeout = detector_config.get('detection_timeout', 5)
         start_time = time.time()
-        detector.invoke()
+        
+        response = session.post(
+            f"{remote_url}/detect",
+            json=payload,
+            timeout=timeout
+        )
+        
         inference_time = (time.time() - start_time) * 1000
         
-        # Get detections
-        detections = detect.get_objects(detector, threshold)
-        
-        # Process results
-        results = []
-        frame_height, frame_width = frame.shape[:2]
-        
-        for detection in detections:
-            class_id = detection.id
-            class_name = labels.get(class_id, f"class_{class_id}")
-            confidence = detection.score
+        if response.status_code == 200:
+            result = response.json()
+            detections = result.get('detections', [])
             
-            # Get bounding box (normalized 0-1)
-            bbox_norm = detection.bbox
+            # Convert normalized bbox to pixel coordinates if needed
+            frame_height, frame_width = frame.shape[:2]
+            for det in detections:
+                if 'bbox_norm' in det:
+                    x1_norm, y1_norm, x2_norm, y2_norm = det['bbox_norm']
+                    det['bbox'] = (
+                        int(x1_norm * frame_width),
+                        int(y1_norm * frame_height),
+                        int(x2_norm * frame_width),
+                        int(y2_norm * frame_height)
+                    )
             
-            # Convert to pixel coordinates
-            x1 = int(bbox_norm.xmin * frame_width)
-            y1 = int(bbox_norm.ymin * frame_height)
-            x2 = int(bbox_norm.xmax * frame_width)
-            y2 = int(bbox_norm.ymax * frame_height)
+            # Debug logging
+            if detections:
+                logger.debug(f"Inference: {inference_time:.1f}ms, Detections: {len(detections)}")
             
-            results.append({
-                'class_id': class_id,
-                'class_name': class_name,
-                'confidence': float(confidence),
-                'bbox': (x1, y1, x2, y2),
-                'bbox_norm': (bbox_norm.xmin, bbox_norm.ymin, bbox_norm.xmax, bbox_norm.ymax)
-            })
-        
-        # Print inference stats (debug)
-        # print(f"Inference: {inference_time:.1f}ms, Detections: {len(results)}")
-        
-        return results
-        
+            return detections
+        else:
+            print(f"Remote detection failed: {response.status_code}")
+            return []
+            
+    except requests.exceptions.Timeout:
+        print(f"Detection request timed out after {timeout}s")
+        return []
+    except requests.exceptions.ConnectionError:
+        print("Lost connection to remote AI service")
+        detector_enabled = False
+        return []
     except Exception as e:
-        print(f"Error during detection: {e}")
+        print(f"Error during remote detection: {e}")
         return []
 
 
@@ -299,34 +307,53 @@ def get_status():
     """Get detector status"""
     return {
         'enabled': detector_enabled,
-        'model': os.path.basename(detector_config.get('model_path', '')),
+        'remote_url': remote_url,
         'threshold': detector_config.get('confidence_threshold', 0.6),
         'classes': detector_config.get('classes_of_interest', []),
-        'labels_loaded': len(labels)
+        'timeout': detector_config.get('detection_timeout', 5)
     }
+
+
+def cleanup():
+    """Close session and cleanup"""
+    global session, detector_enabled
+    if session:
+        session.close()
+    detector_enabled = False
 
 
 if __name__ == "__main__":
     # Test detector
-    print("Testing object detector...")
+    print("Testing remote object detector...")
+    print("\nConfiguration:")
+    print("  1. Make sure Jetson Orin inference server is running")
+    print("  2. Update 'remote_url' in config.json")
+    print("  3. Ensure network connectivity\n")
     
-    if init_detector():
-        print("Detector initialized successfully")
+    # Allow user to input URL
+    url = input("Enter Jetson Orin URL (or press Enter for config.json default): ").strip()
+    if not url:
+        url = None
+    
+    if init_detector(url):
+        print("\nDetector initialized successfully")
         print(f"Status: {get_status()}")
         
         # Create a test image
+        print("\nGenerating test image...")
         test_frame = np.random.randint(0, 255, (1080, 1920, 3), dtype=np.uint8)
         
-        print("\nRunning test detection...")
+        print("Sending test detection request...")
         detections = detect_objects(test_frame)
         print(f"Detections: {len(detections)}")
         
         for det in detections:
             print(f"  - {det['class_name']}: {det['confidence']:.2f}")
+        
+        cleanup()
     else:
-        print("Detector initialization failed")
+        print("\nDetector initialization failed")
         print("Make sure:")
-        print("  1. Coral TPU is connected via USB")
-        print("  2. Model file exists in models/ directory")
-        print("  3. libedgetpu is installed")
-
+        print("  1. Jetson Orin inference server is running")
+        print("  2. Network connection to Jetson is working")
+        print("  3. Remote URL is correct in config.json")

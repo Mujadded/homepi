@@ -15,9 +15,9 @@ RPi.GPIO
 # Security System Dependencies
 # picamera2 and opencv-python should be installed from system packages
 pantilthat
-# pycoral and tflite-runtime require Python 3.9-3.11, skip for now
-# Will use system tflite or alternative
 pyserial
 python-telegram-bot==20.7
 numpy
+requests  # For remote AI service communication
+Pillow    # Image encoding for remote transmission
 

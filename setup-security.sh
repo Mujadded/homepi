@@ -102,72 +102,13 @@ else
     print_success "Camera already enabled"
 fi
 
-# 4. Install Coral TPU Libraries
-echo
-print_info "Installing Coral TPU libraries..."
-
-# Check if libedgetpu is already installed
-if ! dpkg -l | grep -q libedgetpu1; then
-    print_info "Installing Coral TPU libraries (alternative method)..."
-    
-    # Remove any existing repo file
-    sudo rm -f /etc/apt/sources.list.d/coral-edgetpu.list
-    
-    # For Debian Trixie, we'll install from the direct .deb packages
-    # This avoids GPG key issues with the repository
-    print_info "Downloading libedgetpu package..."
-    
-    cd /tmp
-    
-    # Try to download with timeout and better error handling
-    if wget --timeout=30 --tries=3 --show-progress \
-        https://github.com/google-coral/libedgetpu/releases/download/release-frogfish/libedgetpu1-std_16.0_arm64.deb 2>&1; then
-        
-        print_info "Installing libedgetpu..."
-        if sudo dpkg -i libedgetpu1-std_16.0_arm64.deb 2>&1; then
-            print_success "Coral TPU package installed"
-        else
-            print_warning "Fixing dependencies..."
-            sudo apt-get install -f -y
-        fi
-        
-        # Verify installation
-        if dpkg -l | grep -q libedgetpu1; then
-            print_success "Coral TPU libraries installed successfully"
-        else
-            print_warning "Coral TPU installation incomplete - will use Python runtime fallback"
-        fi
-    else
-        print_warning "Download failed - Coral TPU will use Python runtime (slower)"
-        print_info "You can install manually later with:"
-        print_info "  pip install tflite-runtime"
-    fi
-    
-    cd - > /dev/null
-else
-    print_success "Coral TPU libraries already installed"
-fi
-
-# Add udev rules for Coral TPU
-if [ ! -f /etc/udev/rules.d/99-edgetpu-accelerator.rules ]; then
-    print_info "Adding Coral TPU udev rules..."
-    echo 'SUBSYSTEM=="usb", ATTRS{idVendor}=="1a6e", GROUP="plugdev"' | sudo tee /etc/udev/rules.d/99-edgetpu-accelerator.rules
-    echo 'SUBSYSTEM=="usb", ATTRS{idVendor}=="18d1", GROUP="plugdev"' | sudo tee -a /etc/udev/rules.d/99-edgetpu-accelerator.rules
-    sudo udevadm control --reload-rules
-    sudo udevadm trigger
-    print_success "Coral TPU udev rules added"
-fi
-
-# Add user to plugdev group
-sudo usermod -a -G plugdev $USER
-
-# 5. Add user to dialout group for Flipper Zero
+# 4. Add user to dialout group for Flipper Zero
 echo
 print_info "Configuring serial port access for Flipper Zero..."
 sudo usermod -a -G dialout $USER
 print_success "Serial port access configured"
 
-# 6. Install Python Dependencies
+# 5. Install Python Dependencies
 echo
 print_info "Installing Python dependencies..."
 
@@ -180,33 +121,17 @@ fi
 
 print_success "Python dependencies installed"
 
-# 7. Create Required Directories
+# 6. Create Required Directories
 echo
 print_info "Creating required directories..."
 
-mkdir -p models
 mkdir -p recordings
 mkdir -p detections
 mkdir -p backups
 
 print_success "Directories created"
 
-# 8. Download Detection Model
-echo
-print_info "Downloading object detection model..."
-
-MODEL_FILE="models/ssd_mobilenet_v2_coco_quant_postprocess_edgetpu.tflite"
-if [ ! -f "$MODEL_FILE" ]; then
-    cd models
-    wget -q --show-progress https://github.com/google-coral/test_data/raw/master/ssd_mobilenet_v2_coco_quant_postprocess_edgetpu.tflite
-    wget -q --show-progress https://github.com/google-coral/test_data/raw/master/coco_labels.txt
-    cd ..
-    print_success "Detection model downloaded"
-else
-    print_success "Detection model already exists"
-fi
-
-# 9. Test Hardware
+# 7. Test Hardware
 echo
 print_info "Testing hardware connections..."
 
@@ -231,13 +156,6 @@ if command -v libcamera-hello &> /dev/null; then
     fi
 fi
 
-# Test Coral TPU
-if lsusb | grep -q "Global Unichip\|Google Inc."; then
-    print_success "Coral TPU detected on USB"
-else
-    print_warning "Coral TPU not detected - check USB connection"
-fi
-
 # Test Flipper Zero
 if ls /dev/ttyACM* &> /dev/null; then
     print_success "Serial device detected (possibly Flipper Zero)"
@@ -245,7 +163,7 @@ else
     print_warning "No serial devices detected"
 fi
 
-# 10. Summary
+# 8. Summary
 echo
 echo "============================================"
 echo "  Setup Complete!"
@@ -255,21 +173,21 @@ print_info "Summary:"
 echo "  ✓ System dependencies installed"
 echo "  ✓ I2C enabled for Pan-Tilt HAT"
 echo "  ✓ Camera enabled"
-echo "  ✓ Coral TPU libraries installed"
 echo "  ✓ Serial access configured"
 echo "  ✓ Python dependencies installed"
 echo "  ✓ Directories created"
-echo "  ✓ Detection model downloaded"
 echo
 
 print_warning "IMPORTANT: Reboot required for some changes to take effect"
 echo
 print_info "Next steps:"
 echo "  1. Reboot: sudo reboot"
-echo "  2. Configure Telegram in config.json (bot_token and chat_id)"
-echo "  3. Record garage signal on Flipper Zero to /ext/subghz/garage_open.sub"
-echo "  4. Test modules: python3 test_security_modules.py"
-echo "  5. Start service: sudo systemctl restart homepi.service"
+echo "  2. Set up Jetson Orin AI inference server (see JETSON_SETUP.md)"
+echo "  3. Configure Jetson URL in config.json (detection.remote_url)"
+echo "  4. Configure Telegram in config.json (bot_token and chat_id)"
+echo "  5. Record garage signal on Flipper Zero to /ext/subghz/garage_open.sub"
+echo "  6. Test modules: python3 test_security_modules.py"
+echo "  7. Start service: sudo systemctl restart homepi.service"
 echo
 
 read -p "Reboot now? (y/n): " -n 1 -r
@@ -280,4 +198,3 @@ if [[ $REPLY =~ ^[Yy]$ ]]; then
 else
     print_info "Remember to reboot before using the security system"
 fi
-

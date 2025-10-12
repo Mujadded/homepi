@@ -29,10 +29,10 @@
             "tracking_speed": 5
         },
         "detection": {
-            "model_path": "models/ssd_mobilenet_v2_coco_quant_postprocess_edgetpu.tflite",
-            "car_model_path": "models/my_car_classifier_edgetpu.tflite",
+            "remote_url": "http://jetson.local:5001",
             "confidence_threshold": 0.6,
             "detection_interval": 0.1,
+            "detection_timeout": 5,
             "classes_of_interest": ["car", "person", "motorcycle", "bicycle", "truck"]
         },
         "recording": {

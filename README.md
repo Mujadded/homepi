@@ -4,6 +4,7 @@ A beautiful, modern web-based music scheduler for Raspberry Pi that allows you t
 
 ## ✨ Features
 
+### Music Scheduler
 - 🎵 **Song Management**: Upload songs or download from YouTube
 - ⏰ **Scheduling**: Schedule songs to play at specific times daily
 - 🔁 **Repeat Mode**: Option to repeat songs continuously when scheduled time is reached
@@ -13,6 +14,16 @@ A beautiful, modern web-based music scheduler for Raspberry Pi that allows you t
 - 🎩 **Pi HAT Support**: Optional OLED display and environmental sensors (temperature, humidity)
 - ⏱️ **Countdown Display**: See time remaining until next scheduled song
 - 📊 **System Monitoring**: CPU, memory, disk, temperature, and Bluetooth status
+
+### AI Security System (Optional)
+- 🎥 **Camera Surveillance**: Monitor outside with Pi Camera + Pan-Tilt HAT
+- 🤖 **AI Object Detection**: Powered by remote Nvidia Jetson Orin inference
+- 🚗 **Custom Car Recognition**: Train model to detect your specific car
+- 📹 **Video Recording**: Automatic recording of detection events
+- 🔔 **Telegram Alerts**: Instant notifications with photos/videos
+- 🏠 **Garage Automation**: Auto-open via Flipper Zero when your car is detected
+- 🎯 **Object Tracking**: Pan-Tilt follows detected cars and people
+- 💾 **Detection Database**: SQLite database of all events
 
 ## Requirements
 
@@ -130,6 +141,47 @@ hostname -I
 - **Resume**: Resume paused playback
 - **Stop**: Stop all playback
 - **Volume**: Use the slider to adjust volume (0-100%)
+
+## 🔐 Security System Setup (Optional)
+
+HomePi can be extended with an AI-powered security system. See detailed guides:
+
+- **[REMOTE_AI_ARCHITECTURE.md](REMOTE_AI_ARCHITECTURE.md)** - System architecture overview
+- **[JETSON_SETUP.md](JETSON_SETUP.md)** - Setting up Jetson Orin inference server
+- **[MIGRATION_SUMMARY.md](MIGRATION_SUMMARY.md)** - Migration guide and setup steps
+
+### Quick Setup
+
+1. **Install security components on Raspberry Pi:**
+   ```bash
+   sudo bash setup-security.sh
+   ```
+
+2. **Set up Jetson Orin inference server** (follow JETSON_SETUP.md)
+
+3. **Configure in `config.json`:**
+   ```json
+   {
+     "security": {
+       "enabled": true,
+       "detection": {
+         "remote_url": "http://jetson-ip:5001"
+       }
+     }
+   }
+   ```
+
+4. **Test modules:**
+   ```bash
+   python3 test_security_modules.py
+   ```
+
+### Hardware Required
+
+- Pi Camera Module (v2 or v3)
+- Pimoroni Pan-Tilt HAT
+- Flipper Zero (for garage automation)
+- Nvidia Jetson Orin (for AI inference)
 
 ## 🎩 Pi HAT Support (Optional)
 
