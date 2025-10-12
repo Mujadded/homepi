@@ -118,20 +118,32 @@ if ! dpkg -l | grep -q libedgetpu1; then
     print_info "Downloading libedgetpu package..."
     
     cd /tmp
-    wget -q --show-progress https://github.com/google-coral/libedgetpu/releases/download/release-frogfish/libedgetpu1-std_16.0_arm64.deb
     
-    print_info "Installing libedgetpu..."
-    sudo dpkg -i libedgetpu1-std_16.0_arm64.deb || true
-    sudo apt-get install -f -y
-    
-    # Verify installation
-    if dpkg -l | grep -q libedgetpu1; then
-        print_success "Coral TPU libraries installed"
+    # Try to download with timeout and better error handling
+    if wget --timeout=30 --tries=3 --show-progress \
+        https://github.com/google-coral/libedgetpu/releases/download/release-frogfish/libedgetpu1-std_16.0_arm64.deb 2>&1; then
+        
+        print_info "Installing libedgetpu..."
+        if sudo dpkg -i libedgetpu1-std_16.0_arm64.deb 2>&1; then
+            print_success "Coral TPU package installed"
+        else
+            print_warning "Fixing dependencies..."
+            sudo apt-get install -f -y
+        fi
+        
+        # Verify installation
+        if dpkg -l | grep -q libedgetpu1; then
+            print_success "Coral TPU libraries installed successfully"
+        else
+            print_warning "Coral TPU installation incomplete - will use Python runtime fallback"
+        fi
     else
-        print_warning "Coral TPU installation incomplete - will try runtime installation"
+        print_warning "Download failed - Coral TPU will use Python runtime (slower)"
+        print_info "You can install manually later with:"
+        print_info "  pip install tflite-runtime"
     fi
     
-    cd -
+    cd - > /dev/null
 else
     print_success "Coral TPU libraries already installed"
 fi
