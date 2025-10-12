@@ -775,9 +775,18 @@ def get_security_status():
     
     try:
         status = security_manager.get_status()
+        # Add debug info
+        status['_debug'] = {
+            'SECURITY_AVAILABLE': SECURITY_AVAILABLE,
+            'module_loaded': 'security_manager' in dir()
+        }
         return jsonify(status)
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        import traceback
+        return jsonify({
+            'error': str(e),
+            'traceback': traceback.format_exc()
+        }), 500
 
 
 @app.route('/api/security/enable', methods=['POST'])
@@ -969,5 +978,6 @@ if __name__ == '__main__':
     print("=" * 50)
     
     # Run the Flask app
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    # Note: debug=False for production to avoid state loss on reload
+    app.run(host='0.0.0.0', port=5000, debug=False, use_reloader=False)
 
