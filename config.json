@@ -50,8 +50,8 @@
         },
         "notifications": {
             "telegram_enabled": true,
-            "telegram_bot_token": "",
-            "telegram_chat_id": "",
+            "telegram_bot_token": "8481772635:AAHl01Ov7az0M-QxNoE9B4nFGXnB96eSnzA",
+            "telegram_chat_id": "2115300947",
             "send_photo": true,
             "send_video": false,
             "notify_my_car": true,
