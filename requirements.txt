@@ -6,13 +6,20 @@ python-dotenv==1.0.0
 psutil==5.9.6
 mutagen==1.47.0
 
-# Pi HAT Support
-# Sense HAT (all-in-one sensor + display)
+# Pi HAT Support (Sense HAT - currently disabled)
 sense-hat==2.6.0
-
-# Individual modules (alternative to Sense HAT)
 adafruit-circuitpython-ssd1306==2.12.14
 adafruit-circuitpython-bme280==2.6.22
 Pillow==10.1.0
 RPi.GPIO==0.7.1
+
+# Security System Dependencies
+picamera2
+pantilthat
+pycoral
+tflite-runtime
+opencv-python
+pyserial
+python-telegram-bot==20.7
+numpy
 

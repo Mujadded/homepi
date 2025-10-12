@@ -1,13 +1,63 @@
 {
+    "music": {
+        "enabled": true
+    },
     "display": {
-        "enabled": true,
+        "enabled": false,
         "type": "sense_hat",
         "rotation_interval": 5
     },
     "sensor": {
-        "enabled": true,
+        "enabled": false,
         "type": "sense_hat",
         "read_interval": 30
+    },
+    "security": {
+        "enabled": true,
+        "camera": {
+            "resolution": [1920, 1080],
+            "fps": 30,
+            "rotation": 0
+        },
+        "pantilt": {
+            "pan_limits": [-90, 90],
+            "tilt_limits": [-45, 45],
+            "home_position": [0, 0],
+            "patrol_enabled": false,
+            "tracking_enabled": true,
+            "patrol_speed": 2,
+            "tracking_speed": 5
+        },
+        "detection": {
+            "model_path": "models/ssd_mobilenet_v2_coco_quant_postprocess_edgetpu.tflite",
+            "car_model_path": "models/my_car_classifier_edgetpu.tflite",
+            "confidence_threshold": 0.6,
+            "detection_interval": 0.1,
+            "classes_of_interest": ["car", "person", "motorcycle", "bicycle", "truck"]
+        },
+        "recording": {
+            "clips_dir": "recordings",
+            "clip_duration": 30,
+            "keep_days": 30,
+            "quality": "high",
+            "format": "mp4"
+        },
+        "automation": {
+            "flipper_port": "/dev/ttyACM0",
+            "garage_trigger": "my_car",
+            "auto_open": true,
+            "cooldown_seconds": 300
+        },
+        "notifications": {
+            "telegram_enabled": true,
+            "telegram_bot_token": "",
+            "telegram_chat_id": "",
+            "send_photo": true,
+            "send_video": false,
+            "notify_my_car": true,
+            "notify_unknown_car": true,
+            "notify_person": false
+        }
     }
 }
 
