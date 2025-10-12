@@ -63,15 +63,17 @@ sudo apt-get install -y \
     python3-dev \
     python3-numpy \
     libcap-dev \
-    libatlas-base-dev \
+    libopenblas-dev \
     libjpeg-dev \
     libopenjp2-7 \
-    libtiff5 \
+    libtiff6 \
     v4l-utils \
     i2c-tools \
     libgstreamer1.0-0 \
     gstreamer1.0-plugins-base \
-    gstreamer1.0-plugins-good
+    gstreamer1.0-plugins-good \
+    python3-opencv \
+    python3-picamera2
 
 print_success "System dependencies installed"
 
