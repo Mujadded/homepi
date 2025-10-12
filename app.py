@@ -23,6 +23,15 @@ except ImportError as e:
     print(f"⚠ Pi HAT modules not available: {e}")
     HAT_AVAILABLE = False
 
+# Security system modules
+try:
+    import security_manager
+    import car_recognizer
+    SECURITY_AVAILABLE = True
+except ImportError as e:
+    print(f"⚠ Security modules not available: {e}")
+    SECURITY_AVAILABLE = False
+
 app = Flask(__name__, static_folder='static', static_url_path='')
 CORS(app)
 
@@ -754,6 +763,135 @@ def get_sensor_data():
         })
 
 
+# ============================================
+# Security System Routes
+# ============================================
+
+@app.route('/api/security/status', methods=['GET'])
+def get_security_status():
+    """Get security system status"""
+    if not SECURITY_AVAILABLE:
+        return jsonify({'error': 'Security system not available'}), 503
+    
+    try:
+        status = security_manager.get_status()
+        return jsonify(status)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/security/enable', methods=['POST'])
+def enable_security():
+    """Enable security detection"""
+    if not SECURITY_AVAILABLE:
+        return jsonify({'error': 'Security system not available'}), 503
+    
+    try:
+        if security_manager.start_detection():
+            return jsonify({'success': True, 'message': 'Detection started'})
+        else:
+            return jsonify({'success': False, 'message': 'Failed to start detection'}), 500
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/security/disable', methods=['POST'])
+def disable_security():
+    """Disable security detection"""
+    if not SECURITY_AVAILABLE:
+        return jsonify({'error': 'Security system not available'}), 503
+    
+    try:
+        if security_manager.stop_detection():
+            return jsonify({'success': True, 'message': 'Detection stopped'})
+        else:
+            return jsonify({'success': False, 'message': 'Detection not running'}), 400
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/security/detections', methods=['GET'])
+def get_detections():
+    """Get recent detections"""
+    if not SECURITY_AVAILABLE:
+        return jsonify({'error': 'Security system not available'}), 503
+    
+    try:
+        limit = request.args.get('limit', 20, type=int)
+        detections = security_manager.get_recent_detections(limit)
+        return jsonify(detections)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/security/detections/<int:detection_id>', methods=['GET'])
+def get_detection(detection_id):
+    """Get specific detection details"""
+    if not SECURITY_AVAILABLE:
+        return jsonify({'error': 'Security system not available'}), 503
+    
+    try:
+        detections = security_manager.get_recent_detections(1000)  # Get many
+        detection = next((d for d in detections if d['id'] == detection_id), None)
+        
+        if detection:
+            return jsonify(detection)
+        else:
+            return jsonify({'error': 'Detection not found'}), 404
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/security/cars', methods=['GET'])
+def get_known_cars():
+    """Get list of known cars"""
+    if not SECURITY_AVAILABLE:
+        return jsonify({'error': 'Security system not available'}), 503
+    
+    try:
+        cars = car_recognizer.get_known_cars()
+        return jsonify(cars)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/security/cars', methods=['POST'])
+def add_known_car():
+    """Add a known car"""
+    if not SECURITY_AVAILABLE:
+        return jsonify({'error': 'Security system not available'}), 503
+    
+    try:
+        data = request.json
+        car_id = data.get('car_id')
+        owner = data.get('owner')
+        
+        if not car_id or not owner:
+            return jsonify({'error': 'car_id and owner required'}), 400
+        
+        if car_recognizer.add_car_to_database(car_id, owner):
+            return jsonify({'success': True, 'message': f'Car {car_id} added'})
+        else:
+            return jsonify({'success': False, 'message': 'Failed to add car'}), 500
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/security/cars/<car_id>', methods=['DELETE'])
+def delete_known_car(car_id):
+    """Remove a known car"""
+    if not SECURITY_AVAILABLE:
+        return jsonify({'error': 'Security system not available'}), 503
+    
+    try:
+        if car_recognizer.remove_car_from_database(car_id):
+            return jsonify({'success': True, 'message': f'Car {car_id} removed'})
+        else:
+            return jsonify({'success': False, 'message': 'Car not found'}), 404
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
 if __name__ == '__main__':
     # Load all schedules on startup
     reload_all_schedules()
@@ -808,6 +946,25 @@ if __name__ == '__main__':
         print("✓ Joystick controls enabled (Up/Down=Brightness, Left/Right=Volume)")
     else:
         print("\n⚠ Pi HAT modules not loaded - running without display/sensors")
+    
+    # Initialize Security System if available
+    if SECURITY_AVAILABLE:
+        print("\n🔐 Initializing Security System...")
+        if security_manager.init_security():
+            print("✓ Security system initialized")
+            
+            # Auto-start detection if enabled in config
+            with open('config.json', 'r') as f:
+                config = json.load(f)
+                if config.get('security', {}).get('enabled', False):
+                    if security_manager.start_detection():
+                        print("✓ Detection started automatically")
+                    else:
+                        print("⚠ Failed to start detection")
+        else:
+            print("⚠ Security system initialization failed")
+    else:
+        print("\n⚠ Security modules not loaded - running without security system")
     
     print("=" * 50)
     
