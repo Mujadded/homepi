@@ -921,6 +921,7 @@ def live_feed():
         """Generate MJPEG stream from camera frames"""
         import cv2
         import time
+        import camera_manager
         
         while True:
             try:
@@ -950,17 +951,27 @@ def live_feed():
 
 @app.route('/api/security/pantilt/move', methods=['POST'])
 def move_pantilt():
-    """Manual Pan-Tilt control"""
+    """Manual Pan-Tilt control (relative movement)"""
     if not SECURITY_AVAILABLE:
         return jsonify({'error': 'Security system not available'}), 503
     
     try:
+        import pantilt_controller
+        
         data = request.json
-        pan = data.get('pan', 0)
-        tilt = data.get('tilt', 0)
+        pan_delta = data.get('pan', 0)
+        tilt_delta = data.get('tilt', 0)
         speed = data.get('speed', 5)
         
-        pantilt_controller.move_to(pan, tilt, speed)
+        # Get current position
+        current = pantilt_controller.get_position()
+        
+        # Calculate new absolute position
+        new_pan = current['pan'] + pan_delta
+        new_tilt = current['tilt'] + tilt_delta
+        
+        # Move to new position
+        pantilt_controller.move_to(new_pan, new_tilt, speed)
         position = pantilt_controller.get_position()
         
         return jsonify({
@@ -978,6 +989,8 @@ def pantilt_home():
         return jsonify({'error': 'Security system not available'}), 503
     
     try:
+        import pantilt_controller
+        
         pantilt_controller.home()
         position = pantilt_controller.get_position()
         
