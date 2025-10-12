@@ -901,6 +901,195 @@ def delete_known_car(car_id):
         return jsonify({'error': str(e)}), 500
 
 
+@app.route('/api/security/live-feed')
+def live_feed():
+    """MJPEG live camera stream"""
+    if not SECURITY_AVAILABLE:
+        return jsonify({'error': 'Security system not available'}), 503
+    
+    def generate():
+        """Generate MJPEG stream from camera frames"""
+        import cv2
+        import time
+        
+        while True:
+            try:
+                # Get current frame from camera
+                frame = camera_manager.get_frame()
+                
+                if frame is not None:
+                    # Convert RGB to BGR for OpenCV
+                    bgr_frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+                    
+                    # Encode frame to JPEG
+                    _, jpeg = cv2.imencode('.jpg', bgr_frame, [cv2.IMWRITE_JPEG_QUALITY, 85])
+                    
+                    # Yield frame in MJPEG format
+                    yield (b'--frame\r\n'
+                           b'Content-Type: image/jpeg\r\n\r\n' + jpeg.tobytes() + b'\r\n')
+                
+                time.sleep(0.033)  # ~30 FPS
+                
+            except Exception as e:
+                print(f"Error in live feed: {e}")
+                time.sleep(0.1)
+    
+    from flask import Response
+    return Response(generate(), mimetype='multipart/x-mixed-replace; boundary=frame')
+
+
+@app.route('/api/security/pantilt/move', methods=['POST'])
+def move_pantilt():
+    """Manual Pan-Tilt control"""
+    if not SECURITY_AVAILABLE:
+        return jsonify({'error': 'Security system not available'}), 503
+    
+    try:
+        data = request.json
+        pan = data.get('pan', 0)
+        tilt = data.get('tilt', 0)
+        speed = data.get('speed', 5)
+        
+        pantilt_controller.move_to(pan, tilt, speed)
+        position = pantilt_controller.get_position()
+        
+        return jsonify({
+            'success': True,
+            'position': position
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/security/pantilt/home', methods=['POST'])
+def pantilt_home():
+    """Move Pan-Tilt to home position"""
+    if not SECURITY_AVAILABLE:
+        return jsonify({'error': 'Security system not available'}), 503
+    
+    try:
+        pantilt_controller.home()
+        position = pantilt_controller.get_position()
+        
+        return jsonify({
+            'success': True,
+            'position': position
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/security/training/upload', methods=['POST'])
+def upload_training_image():
+    """Upload image for training (car, person, family member)"""
+    if not SECURITY_AVAILABLE:
+        return jsonify({'error': 'Security system not available'}), 503
+    
+    try:
+        if 'image' not in request.files:
+            return jsonify({'error': 'No image provided'}), 400
+        
+        file = request.files['image']
+        label = request.form.get('label')  # 'my_car', 'my_face', 'family_member_name'
+        category = request.form.get('category')  # 'car', 'person'
+        
+        if not label or not category:
+            return jsonify({'error': 'label and category required'}), 400
+        
+        # Save uploaded image
+        import os
+        from datetime import datetime
+        
+        training_dir = f'training_data/{category}/{label}'
+        os.makedirs(training_dir, exist_ok=True)
+        
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        filename = f'{label}_{timestamp}.jpg'
+        filepath = os.path.join(training_dir, filename)
+        
+        file.save(filepath)
+        
+        # Count images for this label
+        image_count = len([f for f in os.listdir(training_dir) if f.endswith(('.jpg', '.jpeg', '.png'))])
+        
+        return jsonify({
+            'success': True,
+            'message': f'Image saved for {label}',
+            'filepath': filepath,
+            'image_count': image_count,
+            'needs_more': image_count < 50  # Recommend at least 50 images
+        })
+        
+    except Exception as e:
+        import traceback
+        return jsonify({
+            'error': str(e),
+            'traceback': traceback.format_exc()
+        }), 500
+
+
+@app.route('/api/security/training/labels', methods=['GET'])
+def get_training_labels():
+    """Get list of training labels and image counts"""
+    if not SECURITY_AVAILABLE:
+        return jsonify({'error': 'Security system not available'}), 503
+    
+    try:
+        import os
+        
+        labels = {
+            'cars': {},
+            'persons': {}
+        }
+        
+        # Scan training_data directory
+        for category in ['car', 'person']:
+            category_dir = f'training_data/{category}'
+            if os.path.exists(category_dir):
+                for label in os.listdir(category_dir):
+                    label_dir = os.path.join(category_dir, label)
+                    if os.path.isdir(label_dir):
+                        image_count = len([f for f in os.listdir(label_dir) 
+                                          if f.endswith(('.jpg', '.jpeg', '.png'))])
+                        
+                        key = 'cars' if category == 'car' else 'persons'
+                        labels[key][label] = {
+                            'count': image_count,
+                            'ready': image_count >= 50
+                        }
+        
+        return jsonify(labels)
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/security/training/train', methods=['POST'])
+def train_model():
+    """Train custom recognition model"""
+    if not SECURITY_AVAILABLE:
+        return jsonify({'error': 'Security system not available'}), 503
+    
+    try:
+        data = request.json
+        category = data.get('category')  # 'car' or 'person'
+        
+        if category not in ['car', 'person']:
+            return jsonify({'error': 'Invalid category'}), 400
+        
+        # TODO: Implement actual training
+        # For now, return placeholder response
+        return jsonify({
+            'success': True,
+            'message': 'Training started',
+            'note': 'Training functionality coming soon. For now, use remote training on laptop.',
+            'guide': 'See TRAINING_GUIDE.md for instructions'
+        })
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
 if __name__ == '__main__':
     # Load all schedules on startup
     reload_all_schedules()

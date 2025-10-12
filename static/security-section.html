@@ -1,0 +1,871 @@
+<!-- Security System Section - Add this to index.html after the music scheduler sections -->
+
+<style>
+/* Security Section Styles */
+.security-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+    gap: 24px;
+    margin-top: 24px;
+}
+
+.live-feed-container {
+    position: relative;
+    width: 100%;
+    padding-top: 56.25%; /* 16:9 aspect ratio */
+    background: #000;
+    border-radius: 12px;
+    overflow: hidden;
+}
+
+.live-feed-container img {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+}
+
+.pantilt-controls {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+    margin-top: 12px;
+}
+
+.pantilt-btn {
+    padding: 12px;
+    background: var(--primary);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 20px;
+    transition: all 0.2s;
+}
+
+.pantilt-btn:hover {
+    background: var(--primary-dark);
+    transform: scale(1.05);
+}
+
+.pantilt-btn:active {
+    transform: scale(0.95);
+}
+
+.pantilt-btn.center {
+    grid-column: 2;
+    background: var(--success);
+}
+
+.detections-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 12px;
+}
+
+.detections-table th {
+    background: var(--gray-100);
+    padding: 10px;
+    text-align: left;
+    font-weight: 600;
+    font-size: 0.9em;
+}
+
+.detections-table td {
+    padding: 10px;
+    border-bottom: 1px solid var(--gray-200);
+}
+
+.detections-table tr:hover {
+    background: var(--gray-50);
+}
+
+.detection-thumbnail {
+    width: 60px;
+    height: 60px;
+    object-fit: cover;
+    border-radius: 6px;
+    cursor: pointer;
+}
+
+.badge {
+    display: inline-block;
+    padding: 4px 10px;
+    border-radius: 12px;
+    font-size: 0.85em;
+    font-weight: 600;
+}
+
+.badge-car { background: #dbeafe; color: #1e40af; }
+.badge-person { background: #fef3c7; color: #92400e; }
+.badge-unknown { background: #f3f4f6; color: #6b7280; }
+
+.training-uploader {
+    border: 2px dashed var(--gray-300);
+    border-radius: 12px;
+    padding: 30px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.3s;
+}
+
+.training-uploader:hover {
+    border-color: var(--primary);
+    background: var(--gray-50);
+}
+
+.training-uploader.dragover {
+    border-color: var(--success);
+    background: #d1fae5;
+}
+
+.training-labels {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-top: 16px;
+}
+
+.training-label-card {
+    background: white;
+    padding: 12px 16px;
+    border-radius: 8px;
+    border: 1px solid var(--gray-200);
+    flex: 1;
+    min-width: 200px;
+}
+
+.training-progress {
+    width: 100%;
+    height: 8px;
+    background: var(--gray-200);
+    border-radius: 4px;
+    overflow: hidden;
+    margin-top: 8px;
+}
+
+.training-progress-bar {
+    height: 100%;
+    background: var(--success);
+    transition: width 0.3s;
+}
+
+/* Modal Styles */
+.modal {
+    display: none;
+    position: fixed;
+    z-index: 1000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.8);
+    animation: fadeIn 0.3s;
+}
+
+.modal.active {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.modal-content {
+    background: white;
+    padding: 30px;
+    border-radius: 16px;
+    max-width: 800px;
+    max-height: 90vh;
+    overflow-y: auto;
+    animation: slideUp 0.3s;
+}
+
+.modal-close {
+    float: right;
+    font-size: 28px;
+    font-weight: bold;
+    cursor: pointer;
+    color: var(--gray-600);
+}
+
+.modal-close:hover {
+    color: var(--danger);
+}
+
+@keyframes slideUp {
+    from {
+        transform: translateY(50px);
+        opacity: 0;
+    }
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+</style>
+
+<!-- Security System Section -->
+<div class="card" id="security-section" style="display: none;">
+    <div class="card-header">
+        <div>
+            <h2>🔐 AI Security System</h2>
+            <p style="opacity: 0.7; margin-top: 5px;">Live camera monitoring with object detection and tracking</p>
+        </div>
+        <div>
+            <button class="btn btn-success" id="toggle-detection-btn" onclick="toggleDetection()">
+                <span id="detection-status-text">Start Detection</span>
+            </button>
+        </div>
+    </div>
+
+    <div class="security-grid">
+        <!-- Live Camera Feed -->
+        <div>
+            <h3 style="margin-bottom: 12px;">📹 Live Feed</h3>
+            <div class="live-feed-container">
+                <img id="live-feed" src="" alt="Live Camera Feed" onerror="this.src='/api/placeholder/640/480'">
+            </div>
+            
+            <!-- Pan-Tilt Controls -->
+            <div style="margin-top: 16px;">
+                <h4 style="margin-bottom: 8px;">Pan-Tilt Control</h4>
+                <div class="pantilt-controls">
+                    <div></div>
+                    <button class="pantilt-btn" onclick="movePanTilt(0, 10)">▲</button>
+                    <div></div>
+                    <button class="pantilt-btn" onclick="movePanTilt(-10, 0)">◄</button>
+                    <button class="pantilt-btn center" onclick="pantiltHome()">⌂</button>
+                    <button class="pantilt-btn" onclick="movePanTilt(10, 0)">►</button>
+                    <div></div>
+                    <button class="pantilt-btn" onclick="movePanTilt(0, -10)">▼</button>
+                    <div></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- System Status & Known Cars -->
+        <div>
+            <h3 style="margin-bottom: 12px;">📊 System Status</h3>
+            <div style="background: var(--gray-50); padding: 16px; border-radius: 12px;">
+                <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px;">
+                    <div>
+                        <strong>Detection:</strong>
+                        <span id="status-detection" class="badge badge-unknown">Inactive</span>
+                    </div>
+                    <div>
+                        <strong>Camera:</strong>
+                        <span id="status-camera" class="badge badge-unknown">Unknown</span>
+                    </div>
+                    <div>
+                        <strong>Pan-Tilt:</strong>
+                        <span id="status-pantilt" class="badge badge-unknown">Unknown</span>
+                    </div>
+                    <div>
+                        <strong>AI Server:</strong>
+                        <span id="status-ai" class="badge badge-unknown">Unknown</span>
+                    </div>
+                    <div>
+                        <strong>Detections:</strong>
+                        <span id="status-count">0</span>
+                    </div>
+                    <div>
+                        <strong>Tracking:</strong>
+                        <span id="status-tracking">Inactive</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Known Cars -->
+            <h3 style="margin: 16px 0 12px 0;">🚗 Known Cars</h3>
+            <div id="known-cars-list">
+                <p style="color: var(--gray-600); text-align: center; padding: 20px;">
+                    No cars registered yet. Add cars in the Training section below.
+                </p>
+            </div>
+            <button class="btn btn-secondary" style="width: 100%; margin-top: 12px;" onclick="showAddCarModal()">
+                + Add Car
+            </button>
+        </div>
+    </div>
+
+    <!-- Recent Detections -->
+    <div style="margin-top: 24px;">
+        <h3 style="margin-bottom: 12px;">🎯 Recent Detections</h3>
+        <div style="overflow-x: auto;">
+            <table class="detections-table">
+                <thead>
+                    <tr>
+                        <th>Image</th>
+                        <th>Type</th>
+                        <th>Time</th>
+                        <th>Confidence</th>
+                        <th>Action Taken</th>
+                        <th>Details</th>
+                    </tr>
+                </thead>
+                <tbody id="detections-tbody">
+                    <tr>
+                        <td colspan="6" style="text-align: center; padding: 40px; color: var(--gray-600);">
+                            No detections yet. Walk in front of the camera to test!
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Training Section -->
+    <div style="margin-top: 24px;">
+        <h3 style="margin-bottom: 12px;">🎓 Custom Recognition Training</h3>
+        <p style="color: var(--gray-600); margin-bottom: 16px;">
+            Upload photos to train the system to recognize your car and family members.
+            Minimum 50 images per person/car recommended.
+        </p>
+
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 24px;">
+            <!-- Car Training -->
+            <div>
+                <h4 style="margin-bottom: 12px;">🚗 Train Car Recognition</h4>
+                <div class="training-uploader" id="car-uploader" onclick="document.getElementById('car-upload-input').click()">
+                    <div style="font-size: 48px; margin-bottom: 12px;">📸</div>
+                    <p><strong>Click or drag photos of your car</strong></p>
+                    <p style="font-size: 0.9em; color: var(--gray-600); margin-top: 8px;">
+                        Multiple angles, different lighting conditions
+                    </p>
+                    <input type="file" id="car-upload-input" multiple accept="image/*" style="display: none;" onchange="uploadTrainingImages('car')">
+                </div>
+                <div style="margin-top: 12px;">
+                    <label>
+                        <strong>Car Label:</strong>
+                        <input type="text" id="car-label-input" placeholder="e.g., my_car" style="width: 100%; padding: 8px; border: 1px solid var(--gray-300); border-radius: 6px; margin-top: 4px;">
+                    </label>
+                </div>
+                <div id="car-training-labels" class="training-labels"></div>
+            </div>
+
+            <!-- Person Training -->
+            <div>
+                <h4 style="margin-bottom: 12px;">👤 Train Person Recognition</h4>
+                <div class="training-uploader" id="person-uploader" onclick="document.getElementById('person-upload-input').click()">
+                    <div style="font-size: 48px; margin-bottom: 12px;">📸</div>
+                    <p><strong>Click or drag photos of family members</strong></p>
+                    <p style="font-size: 0.9em; color: var(--gray-600); margin-top: 8px;">
+                        Different expressions, angles, and lighting
+                    </p>
+                    <input type="file" id="person-upload-input" multiple accept="image/*" style="display: none;" onchange="uploadTrainingImages('person')">
+                </div>
+                <div style="margin-top: 12px;">
+                    <label>
+                        <strong>Person Label:</strong>
+                        <input type="text" id="person-label-input" placeholder="e.g., dad, mom, john" style="width: 100%; padding: 8px; border: 1px solid var(--gray-300); border-radius: 6px; margin-top: 4px;">
+                    </label>
+                </div>
+                <div id="person-training-labels" class="training-labels"></div>
+            </div>
+        </div>
+
+        <div style="margin-top: 24px; padding: 20px; background: var(--gray-50); border-radius: 12px;">
+            <h4 style="margin-bottom: 12px;">📖 Training Guide</h4>
+            <ul style="list-style: none; padding: 0;">
+                <li style="padding: 8px 0;">✓ Upload at least 50 images per car/person</li>
+                <li style="padding: 8px 0;">✓ Include various angles (front, side, back)</li>
+                <li style="padding: 8px 0;">✓ Different lighting conditions (day, night, cloudy)</li>
+                <li style="padding: 8px 0;">✓ Multiple distances (close-up and far away)</li>
+                <li style="padding: 8px 0;">✓ Use clear, high-quality images (not blurry)</li>
+            </ul>
+            <button class="btn btn-primary" style="width: 100%; margin-top: 16px;" onclick="startTraining()">
+                🚀 Start Training Model
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Detection Details Modal -->
+<div id="detection-modal" class="modal">
+    <div class="modal-content">
+        <span class="modal-close" onclick="closeDetectionModal()">&times;</span>
+        <h2 id="modal-title">Detection Details</h2>
+        <div id="modal-body" style="margin-top: 20px;">
+            <!-- Dynamic content loaded here -->
+        </div>
+    </div>
+</div>
+
+<!-- Add Car Modal -->
+<div id="add-car-modal" class="modal">
+    <div class="modal-content">
+        <span class="modal-close" onclick="closeAddCarModal()">&times;</span>
+        <h2>Add Known Car</h2>
+        <div style="margin-top: 20px;">
+            <label style="display: block; margin-bottom: 12px;">
+                <strong>Car ID:</strong>
+                <input type="text" id="new-car-id" placeholder="e.g., my_car, neighbor_car" style="width: 100%; padding: 12px; border: 1px solid var(--gray-300); border-radius: 6px; margin-top: 4px;">
+            </label>
+            <label style="display: block; margin-bottom: 12px;">
+                <strong>Owner Name:</strong>
+                <input type="text" id="new-car-owner" placeholder="e.g., John Doe" style="width: 100%; padding: 12px; border: 1px solid var(--gray-300); border-radius: 6px; margin-top: 4px;">
+            </label>
+            <button class="btn btn-primary" style="width: 100%; margin-top: 16px;" onclick="addKnownCar()">
+                Add Car
+            </button>
+        </div>
+    </div>
+</div>
+
+<script>
+// Security System JavaScript
+let securityEnabled = false;
+let liveFeedInterval = null;
+
+// Initialize security section
+async function initSecurity() {
+    const status = await fetch('/api/security/status').then(r => r.json());
+    
+    if (status.error) {
+        console.error('Security system not available:', status.error);
+        return;
+    }
+    
+    document.getElementById('security-section').style.display = 'block';
+    updateSecurityStatus();
+    loadRecentDetections();
+    loadKnownCars();
+    loadTrainingLabels();
+    
+    // Update every 5 seconds
+    setInterval(() => {
+        updateSecurityStatus();
+        loadRecentDetections();
+    }, 5000);
+}
+
+// Update security status display
+async function updateSecurityStatus() {
+    try {
+        const status = await fetch('/api/security/status').then(r => r.json());
+        
+        // Update status badges
+        document.getElementById('status-detection').textContent = status.detection_running ? 'Active' : 'Inactive';
+        document.getElementById('status-detection').className = 'badge ' + (status.detection_running ? 'badge-car' : 'badge-unknown');
+        
+        document.getElementById('status-camera').textContent = status.camera_enabled ? 'Online' : 'Offline';
+        document.getElementById('status-camera').className = 'badge ' + (status.camera_enabled ? 'badge-car' : 'badge-unknown');
+        
+        document.getElementById('status-pantilt').textContent = status.pantilt_enabled ? 'Online' : 'Offline';
+        document.getElementById('status-pantilt').className = 'badge ' + (status.pantilt_enabled ? 'badge-car' : 'badge-unknown');
+        
+        document.getElementById('status-ai').textContent = status.detector_enabled ? 'Connected' : 'Disconnected';
+        document.getElementById('status-ai').className = 'badge ' + (status.detector_enabled ? 'badge-car' : 'badge-unknown');
+        
+        document.getElementById('status-count').textContent = status.current_detections || 0;
+        document.getElementById('status-tracking').textContent = status.tracking_target ? 'Active' : 'Inactive';
+        
+        // Update detection button
+        const btn = document.getElementById('toggle-detection-btn');
+        if (status.detection_running) {
+            btn.textContent = 'Stop Detection';
+            btn.className = 'btn btn-danger';
+            startLiveFeed();
+        } else {
+            btn.textContent = 'Start Detection';
+            btn.className = 'btn btn-success';
+            stopLiveFeed();
+        }
+        
+        securityEnabled = status.detection_running;
+        
+    } catch (error) {
+        console.error('Error updating status:', error);
+    }
+}
+
+// Toggle detection on/off
+async function toggleDetection() {
+    try {
+        const endpoint = securityEnabled ? '/api/security/disable' : '/api/security/enable';
+        const response = await fetch(endpoint, { method: 'POST' });
+        const result = await response.json();
+        
+        if (result.success) {
+            await updateSecurityStatus();
+        } else {
+            alert('Failed to toggle detection: ' + result.message);
+        }
+    } catch (error) {
+        console.error('Error toggling detection:', error);
+        alert('Error: ' + error.message);
+    }
+}
+
+// Start live feed
+function startLiveFeed() {
+    if (!liveFeedInterval) {
+        const img = document.getElementById('live-feed');
+        img.src = '/api/security/live-feed?' + new Date().getTime();
+    }
+}
+
+// Stop live feed
+function stopLiveFeed() {
+    const img = document.getElementById('live-feed');
+    img.src = '';
+}
+
+// Pan-Tilt control
+async function movePanTilt(panDelta, tiltDelta) {
+    try {
+        // Get current position first (optional, for smooth relative movement)
+        const response = await fetch('/api/security/pantilt/move', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ pan: panDelta, tilt: tiltDelta, speed: 5 })
+        });
+        const result = await response.json();
+        if (!result.success) {
+            console.error('Pan-Tilt move failed:', result.error);
+        }
+    } catch (error) {
+        console.error('Error moving pan-tilt:', error);
+    }
+}
+
+async function pantiltHome() {
+    try {
+        const response = await fetch('/api/security/pantilt/home', { method: 'POST' });
+        const result = await response.json();
+        if (!result.success) {
+            console.error('Pan-Tilt home failed:', result.error);
+        }
+    } catch (error) {
+        console.error('Error homing pan-tilt:', error);
+    }
+}
+
+// Load recent detections
+async function loadRecentDetections() {
+    try {
+        const detections = await fetch('/api/security/detections?limit=10').then(r => r.json());
+        const tbody = document.getElementById('detections-tbody');
+        
+        if (detections.length === 0) {
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="6" style="text-align: center; padding: 40px; color: var(--gray-600);">
+                        No detections yet. Walk in front of the camera to test!
+                    </td>
+                </tr>
+            `;
+            return;
+        }
+        
+        tbody.innerHTML = detections.map(det => `
+            <tr>
+                <td>
+                    ${det.image_path ? `<img src="/${det.image_path}" class="detection-thumbnail" onclick="showDetectionDetails(${det.id})">` : 'N/A'}
+                </td>
+                <td>
+                    <span class="badge badge-${det.object_type === 'person' ? 'person' : 'car'}">${det.object_type}</span>
+                    ${det.car_id ? `<br><small>${det.car_id}</small>` : ''}
+                </td>
+                <td>${new Date(det.timestamp).toLocaleString()}</td>
+                <td>${(det.confidence * 100).toFixed(1)}%</td>
+                <td>${det.action_taken || 'None'}</td>
+                <td>
+                    <button class="btn btn-secondary" style="padding: 6px 12px; font-size: 0.85em;" onclick="showDetectionDetails(${det.id})">
+                        View
+                    </button>
+                </td>
+            </tr>
+        `).join('');
+        
+    } catch (error) {
+        console.error('Error loading detections:', error);
+    }
+}
+
+// Show detection details modal
+async function showDetectionDetails(detectionId) {
+    try {
+        const detection = await fetch(`/api/security/detections/${detectionId}`).then(r => r.json());
+        
+        document.getElementById('modal-title').textContent = `Detection #${detection.id} - ${detection.object_type}`;
+        document.getElementById('modal-body').innerHTML = `
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                <div>
+                    ${detection.image_path ? `<img src="/${detection.image_path}" style="width: 100%; border-radius: 8px;">` : ''}
+                </div>
+                <div>
+                    <p><strong>Time:</strong> ${new Date(detection.timestamp).toLocaleString()}</p>
+                    <p><strong>Type:</strong> ${detection.object_type}</p>
+                    <p><strong>Confidence:</strong> ${(detection.confidence * 100).toFixed(1)}%</p>
+                    ${detection.car_id ? `<p><strong>Car ID:</strong> ${detection.car_id}</p>` : ''}
+                    <p><strong>Action Taken:</strong> ${detection.action_taken || 'None'}</p>
+                    ${detection.bbox ? `<p><strong>Bounding Box:</strong> ${JSON.stringify(detection.bbox)}</p>` : ''}
+                </div>
+            </div>
+        `;
+        
+        document.getElementById('detection-modal').classList.add('active');
+    } catch (error) {
+        console.error('Error loading detection details:', error);
+    }
+}
+
+function closeDetectionModal() {
+    document.getElementById('detection-modal').classList.remove('active');
+}
+
+// Load known cars
+async function loadKnownCars() {
+    try {
+        const cars = await fetch('/api/security/cars').then(r => r.json());
+        const container = document.getElementById('known-cars-list');
+        
+        if (cars.length === 0) {
+            container.innerHTML = '<p style="color: var(--gray-600); text-align: center; padding: 20px;">No cars registered yet.</p>';
+            return;
+        }
+        
+        container.innerHTML = cars.map(car => `
+            <div style="background: white; padding: 12px; border-radius: 8px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center;">
+                <div>
+                    <strong>${car.car_id}</strong>
+                    <div style="font-size: 0.9em; color: var(--gray-600);">${car.owner}</div>
+                </div>
+                <button class="btn btn-danger" style="padding: 6px 12px; font-size: 0.85em;" onclick="removeKnownCar('${car.car_id}')">
+                    Delete
+                </button>
+            </div>
+        `).join('');
+        
+    } catch (error) {
+        console.error('Error loading known cars:', error);
+    }
+}
+
+// Show add car modal
+function showAddCarModal() {
+    document.getElementById('add-car-modal').classList.add('active');
+}
+
+function closeAddCarModal() {
+    document.getElementById('add-car-modal').classList.remove('active');
+}
+
+// Add known car
+async function addKnownCar() {
+    const carId = document.getElementById('new-car-id').value.trim();
+    const owner = document.getElementById('new-car-owner').value.trim();
+    
+    if (!carId || !owner) {
+        alert('Please fill in all fields');
+        return;
+    }
+    
+    try {
+        const response = await fetch('/api/security/cars', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ car_id: carId, owner: owner })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            closeAddCarModal();
+            loadKnownCars();
+            document.getElementById('new-car-id').value = '';
+            document.getElementById('new-car-owner').value = '';
+        } else {
+            alert('Failed to add car: ' + result.message);
+        }
+    } catch (error) {
+        console.error('Error adding car:', error);
+        alert('Error: ' + error.message);
+    }
+}
+
+// Remove known car
+async function removeKnownCar(carId) {
+    if (!confirm(`Remove car "${carId}"?`)) return;
+    
+    try {
+        const response = await fetch(`/api/security/cars/${carId}`, { method: 'DELETE' });
+        const result = await response.json();
+        
+        if (result.success) {
+            loadKnownCars();
+        } else {
+            alert('Failed to remove car: ' + result.message);
+        }
+    } catch (error) {
+        console.error('Error removing car:', error);
+        alert('Error: ' + error.message);
+    }
+}
+
+// Upload training images
+async function uploadTrainingImages(category) {
+    const inputId = category === 'car' ? 'car-upload-input' : 'person-upload-input';
+    const labelInputId = category === 'car' ? 'car-label-input' : 'person-label-input';
+    
+    const files = document.getElementById(inputId).files;
+    const label = document.getElementById(labelInputId).value.trim();
+    
+    if (!label) {
+        alert(`Please enter a label for the ${category}`);
+        return;
+    }
+    
+    if (files.length === 0) {
+        alert('Please select images to upload');
+        return;
+    }
+    
+    for (let file of files) {
+        const formData = new FormData();
+        formData.append('image', file);
+        formData.append('label', label);
+        formData.append('category', category);
+        
+        try {
+            const response = await fetch('/api/security/training/upload', {
+                method: 'POST',
+                body: formData
+            });
+            
+            const result = await response.json();
+            
+            if (!result.success) {
+                console.error('Upload failed:', result.error);
+            }
+        } catch (error) {
+            console.error('Error uploading image:', error);
+        }
+    }
+    
+    // Reload training labels
+    await loadTrainingLabels();
+    
+    // Clear file input
+    document.getElementById(inputId).value = '';
+    
+    alert(`Uploaded ${files.length} images for ${label}`);
+}
+
+// Load training labels and counts
+async function loadTrainingLabels() {
+    try {
+        const labels = await fetch('/api/security/training/labels').then(r => r.json());
+        
+        // Update car labels
+        const carContainer = document.getElementById('car-training-labels');
+        const carLabels = Object.entries(labels.cars || {});
+        
+        if (carLabels.length === 0) {
+            carContainer.innerHTML = '<p style="color: var(--gray-600); padding: 12px 0;">No car training data yet</p>';
+        } else {
+            carContainer.innerHTML = carLabels.map(([label, data]) => `
+                <div class="training-label-card">
+                    <strong>${label}</strong>
+                    <div style="font-size: 0.9em; color: var(--gray-600); margin-top: 4px;">
+                        ${data.count} images
+                        ${data.ready ? '<span style="color: var(--success);">✓ Ready</span>' : '<span style="color: var(--warning);">Need more</span>'}
+                    </div>
+                    <div class="training-progress">
+                        <div class="training-progress-bar" style="width: ${Math.min(100, (data.count / 50) * 100)}%"></div>
+                    </div>
+                </div>
+            `).join('');
+        }
+        
+        // Update person labels
+        const personContainer = document.getElementById('person-training-labels');
+        const personLabels = Object.entries(labels.persons || {});
+        
+        if (personLabels.length === 0) {
+            personContainer.innerHTML = '<p style="color: var(--gray-600); padding: 12px 0;">No person training data yet</p>';
+        } else {
+            personContainer.innerHTML = personLabels.map(([label, data]) => `
+                <div class="training-label-card">
+                    <strong>${label}</strong>
+                    <div style="font-size: 0.9em; color: var(--gray-600); margin-top: 4px;">
+                        ${data.count} images
+                        ${data.ready ? '<span style="color: var(--success);">✓ Ready</span>' : '<span style="color: var(--warning);">Need more</span>'}
+                    </div>
+                    <div class="training-progress">
+                        <div class="training-progress-bar" style="width: ${Math.min(100, (data.count / 50) * 100)}%"></div>
+                    </div>
+                </div>
+            `).join('');
+        }
+        
+    } catch (error) {
+        console.error('Error loading training labels:', error);
+    }
+}
+
+// Start training
+async function startTraining() {
+    if (!confirm('Start training? This may take several minutes.')) return;
+    
+    try {
+        // For now, show info about remote training
+        alert('Training on Raspberry Pi is not yet implemented.\n\nFor best results:\n1. Download training images from training_data/ folder\n2. Train on laptop with GPU (see TRAINING_GUIDE.md)\n3. Upload trained model back to Pi\n\nComing soon: On-device training support!');
+        
+        // TODO: Implement actual training
+        // const response = await fetch('/api/security/training/train', {
+        //     method: 'POST',
+        //     headers: { 'Content-Type': 'application/json' },
+        //     body: JSON.stringify({ category: 'car' })
+        // });
+        
+    } catch (error) {
+        console.error('Error starting training:', error);
+        alert('Error: ' + error.message);
+    }
+}
+
+// Drag and drop support
+['car-uploader', 'person-uploader'].forEach(id => {
+    const uploader = document.getElementById(id);
+    
+    ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+        uploader.addEventListener(eventName, preventDefaults, false);
+    });
+    
+    function preventDefaults(e) {
+        e.preventDefault();
+        e.stopPropagation();
+    }
+    
+    ['dragenter', 'dragover'].forEach(eventName => {
+        uploader.addEventListener(eventName, () => uploader.classList.add('dragover'), false);
+    });
+    
+    ['dragleave', 'drop'].forEach(eventName => {
+        uploader.addEventListener(eventName, () => uploader.classList.remove('dragover'), false);
+    });
+    
+    uploader.addEventListener('drop', handleDrop, false);
+    
+    function handleDrop(e) {
+        const dt = e.dataTransfer;
+        const files = dt.files;
+        const category = id === 'car-uploader' ? 'car' : 'person';
+        const inputId = category === 'car' ? 'car-upload-input' : 'person-upload-input';
+        
+        document.getElementById(inputId).files = files;
+        uploadTrainingImages(category);
+    }
+});
+
+// Initialize on page load
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initSecurity);
+} else {
+    initSecurity();
+}
+</script>
+
