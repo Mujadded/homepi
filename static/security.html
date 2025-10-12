@@ -1,0 +1,583 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HomePi - AI Security System</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #6366f1;
+            --primary-dark: #4f46e5;
+            --primary-light: #818cf8;
+            --secondary: #ec4899;
+            --success: #10b981;
+            --danger: #ef4444;
+            --warning: #f59e0b;
+            --dark: #1f2937;
+            --gray-50: #f9fafb;
+            --gray-100: #f3f4f6;
+            --gray-200: #e5e7eb;
+            --gray-300: #d1d5db;
+            --gray-600: #4b5563;
+            --gray-700: #374151;
+            --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+            --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            --shadow-md: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+            --shadow-lg: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+            --shadow-xl: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%);
+            background-attachment: fixed;
+            min-height: 100vh;
+            padding: 20px;
+            color: var(--dark);
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        header {
+            background: white;
+            padding: 20px 30px;
+            border-radius: 16px;
+            box-shadow: var(--shadow-lg);
+            margin-bottom: 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        header h1 {
+            font-size: 2em;
+            color: var(--dark);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 12px;
+        }
+
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-size: 1em;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            text-decoration: none;
+            display: inline-block;
+        }
+
+        .btn-primary {
+            background: var(--primary);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: var(--primary-dark);
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-md);
+        }
+
+        .btn-success {
+            background: var(--success);
+            color: white;
+        }
+
+        .btn-success:hover {
+            background: #059669;
+        }
+
+        .btn-danger {
+            background: var(--danger);
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background: #dc2626;
+        }
+
+        .btn-secondary {
+            background: var(--gray-200);
+            color: var(--dark);
+        }
+
+        .btn-secondary:hover {
+            background: var(--gray-300);
+        }
+
+        .card {
+            background: white;
+            border-radius: 16px;
+            padding: 30px;
+            box-shadow: var(--shadow-lg);
+            margin-bottom: 24px;
+        }
+
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+            padding-bottom: 20px;
+            border-bottom: 2px solid var(--gray-100);
+        }
+
+        .card-header h2 {
+            font-size: 1.8em;
+            color: var(--dark);
+        }
+
+        .security-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+            gap: 24px;
+        }
+
+        .live-feed-container {
+            position: relative;
+            width: 100%;
+            padding-top: 56.25%;
+            background: #000;
+            border-radius: 12px;
+            overflow: hidden;
+        }
+
+        .live-feed-container img {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+
+        .pantilt-controls {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 8px;
+            margin-top: 12px;
+        }
+
+        .pantilt-btn {
+            padding: 12px;
+            background: var(--primary);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 20px;
+            transition: all 0.2s;
+        }
+
+        .pantilt-btn:hover {
+            background: var(--primary-dark);
+            transform: scale(1.05);
+        }
+
+        .pantilt-btn:active {
+            transform: scale(0.95);
+        }
+
+        .pantilt-btn.center {
+            grid-column: 2;
+            background: var(--success);
+        }
+
+        .detections-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 12px;
+        }
+
+        .detections-table th {
+            background: var(--gray-100);
+            padding: 10px;
+            text-align: left;
+            font-weight: 600;
+            font-size: 0.9em;
+        }
+
+        .detections-table td {
+            padding: 10px;
+            border-bottom: 1px solid var(--gray-200);
+        }
+
+        .detections-table tr:hover {
+            background: var(--gray-50);
+        }
+
+        .detection-thumbnail {
+            width: 60px;
+            height: 60px;
+            object-fit: cover;
+            border-radius: 6px;
+            cursor: pointer;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 0.85em;
+            font-weight: 600;
+        }
+
+        .badge-car { background: #dbeafe; color: #1e40af; }
+        .badge-person { background: #fef3c7; color: #92400e; }
+        .badge-unknown { background: #f3f4f6; color: #6b7280; }
+
+        .training-uploader {
+            border: 2px dashed var(--gray-300);
+            border-radius: 12px;
+            padding: 30px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .training-uploader:hover {
+            border-color: var(--primary);
+            background: var(--gray-50);
+        }
+
+        .training-uploader.dragover {
+            border-color: var(--success);
+            background: #d1fae5;
+        }
+
+        .training-labels {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            margin-top: 16px;
+        }
+
+        .training-label-card {
+            background: white;
+            padding: 12px 16px;
+            border-radius: 8px;
+            border: 1px solid var(--gray-200);
+            flex: 1;
+            min-width: 200px;
+        }
+
+        .training-progress {
+            width: 100%;
+            height: 8px;
+            background: var(--gray-200);
+            border-radius: 4px;
+            overflow: hidden;
+            margin-top: 8px;
+        }
+
+        .training-progress-bar {
+            height: 100%;
+            background: var(--success);
+            transition: width 0.3s;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            animation: fadeIn 0.3s;
+        }
+
+        .modal.active {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-content {
+            background: white;
+            padding: 30px;
+            border-radius: 16px;
+            max-width: 800px;
+            max-height: 90vh;
+            overflow-y: auto;
+            animation: slideUp 0.3s;
+        }
+
+        .modal-close {
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+            color: var(--gray-600);
+        }
+
+        .modal-close:hover {
+            color: var(--danger);
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        @keyframes slideUp {
+            from {
+                transform: translateY(50px);
+                opacity: 0;
+            }
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .security-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            header {
+                flex-direction: column;
+                gap: 16px;
+            }
+            
+            .nav-links {
+                width: 100%;
+                justify-content: center;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🔐 AI Security System</h1>
+            <div class="nav-links">
+                <a href="/" class="btn btn-secondary">🎵 Music Scheduler</a>
+                <button class="btn btn-success" id="toggle-detection-btn" onclick="toggleDetection()">
+                    <span id="detection-status-text">Start Detection</span>
+                </button>
+            </div>
+        </header>
+
+        <!-- Live Feed & Controls -->
+        <div class="card">
+            <div class="security-grid">
+                <!-- Live Camera Feed -->
+                <div>
+                    <h3 style="margin-bottom: 12px;">📹 Live Feed</h3>
+                    <div class="live-feed-container">
+                        <img id="live-feed" src="" alt="Live Camera Feed" onerror="this.src='/api/placeholder/640/480'">
+                    </div>
+                    
+                    <!-- Pan-Tilt Controls -->
+                    <div style="margin-top: 16px;">
+                        <h4 style="margin-bottom: 8px;">Pan-Tilt Control</h4>
+                        <div class="pantilt-controls">
+                            <div></div>
+                            <button class="pantilt-btn" onclick="movePanTilt(0, 10)">▲</button>
+                            <div></div>
+                            <button class="pantilt-btn" onclick="movePanTilt(-10, 0)">◄</button>
+                            <button class="pantilt-btn center" onclick="pantiltHome()">⌂</button>
+                            <button class="pantilt-btn" onclick="movePanTilt(10, 0)">►</button>
+                            <div></div>
+                            <button class="pantilt-btn" onclick="movePanTilt(0, -10)">▼</button>
+                            <div></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- System Status & Known Cars -->
+                <div>
+                    <h3 style="margin-bottom: 12px;">📊 System Status</h3>
+                    <div style="background: var(--gray-50); padding: 16px; border-radius: 12px;">
+                        <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px;">
+                            <div>
+                                <strong>Detection:</strong>
+                                <span id="status-detection" class="badge badge-unknown">Inactive</span>
+                            </div>
+                            <div>
+                                <strong>Camera:</strong>
+                                <span id="status-camera" class="badge badge-unknown">Unknown</span>
+                            </div>
+                            <div>
+                                <strong>Pan-Tilt:</strong>
+                                <span id="status-pantilt" class="badge badge-unknown">Unknown</span>
+                            </div>
+                            <div>
+                                <strong>AI Server:</strong>
+                                <span id="status-ai" class="badge badge-unknown">Unknown</span>
+                            </div>
+                            <div>
+                                <strong>Detections:</strong>
+                                <span id="status-count">0</span>
+                            </div>
+                            <div>
+                                <strong>Tracking:</strong>
+                                <span id="status-tracking">Inactive</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Known Cars -->
+                    <h3 style="margin: 16px 0 12px 0;">🚗 Known Cars</h3>
+                    <div id="known-cars-list">
+                        <p style="color: var(--gray-600); text-align: center; padding: 20px;">
+                            Loading...
+                        </p>
+                    </div>
+                    <button class="btn btn-secondary" style="width: 100%; margin-top: 12px;" onclick="showAddCarModal()">
+                        + Add Car
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Recent Detections -->
+        <div class="card">
+            <h3 style="margin-bottom: 12px;">🎯 Recent Detections</h3>
+            <div style="overflow-x: auto;">
+                <table class="detections-table">
+                    <thead>
+                        <tr>
+                            <th>Image</th>
+                            <th>Type</th>
+                            <th>Time</th>
+                            <th>Confidence</th>
+                            <th>Action Taken</th>
+                            <th>Details</th>
+                        </tr>
+                    </thead>
+                    <tbody id="detections-tbody">
+                        <tr>
+                            <td colspan="6" style="text-align: center; padding: 40px; color: var(--gray-600);">
+                                Loading...
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Training Section -->
+        <div class="card">
+            <h3 style="margin-bottom: 12px;">🎓 Custom Recognition Training</h3>
+            <p style="color: var(--gray-600); margin-bottom: 16px;">
+                Upload photos to train the system to recognize your car and family members.
+                Minimum 50 images per person/car recommended.
+            </p>
+
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 24px;">
+                <!-- Car Training -->
+                <div>
+                    <h4 style="margin-bottom: 12px;">🚗 Train Car Recognition</h4>
+                    <div class="training-uploader" id="car-uploader" onclick="document.getElementById('car-upload-input').click()">
+                        <div style="font-size: 48px; margin-bottom: 12px;">📸</div>
+                        <p><strong>Click or drag photos of your car</strong></p>
+                        <p style="font-size: 0.9em; color: var(--gray-600); margin-top: 8px;">
+                            Multiple angles, different lighting conditions
+                        </p>
+                        <input type="file" id="car-upload-input" multiple accept="image/*" style="display: none;" onchange="uploadTrainingImages('car')">
+                    </div>
+                    <div style="margin-top: 12px;">
+                        <label>
+                            <strong>Car Label:</strong>
+                            <input type="text" id="car-label-input" placeholder="e.g., my_car" style="width: 100%; padding: 8px; border: 1px solid var(--gray-300); border-radius: 6px; margin-top: 4px;">
+                        </label>
+                    </div>
+                    <div id="car-training-labels" class="training-labels"></div>
+                </div>
+
+                <!-- Person Training -->
+                <div>
+                    <h4 style="margin-bottom: 12px;">👤 Train Person Recognition</h4>
+                    <div class="training-uploader" id="person-uploader" onclick="document.getElementById('person-upload-input').click()">
+                        <div style="font-size: 48px; margin-bottom: 12px;">📸</div>
+                        <p><strong>Click or drag photos of family members</strong></p>
+                        <p style="font-size: 0.9em; color: var(--gray-600); margin-top: 8px;">
+                            Different expressions, angles, and lighting
+                        </p>
+                        <input type="file" id="person-upload-input" multiple accept="image/*" style="display: none;" onchange="uploadTrainingImages('person')">
+                    </div>
+                    <div style="margin-top: 12px;">
+                        <label>
+                            <strong>Person Label:</strong>
+                            <input type="text" id="person-label-input" placeholder="e.g., dad, mom, john" style="width: 100%; padding: 8px; border: 1px solid var(--gray-300); border-radius: 6px; margin-top: 4px;">
+                        </label>
+                    </div>
+                    <div id="person-training-labels" class="training-labels"></div>
+                </div>
+            </div>
+
+            <div style="margin-top: 24px; padding: 20px; background: var(--gray-50); border-radius: 12px;">
+                <h4 style="margin-bottom: 12px;">📖 Training Guide</h4>
+                <ul style="list-style: none; padding: 0;">
+                    <li style="padding: 8px 0;">✓ Upload at least 50 images per car/person</li>
+                    <li style="padding: 8px 0;">✓ Include various angles (front, side, back)</li>
+                    <li style="padding: 8px 0;">✓ Different lighting conditions (day, night, cloudy)</li>
+                    <li style="padding: 8px 0;">✓ Multiple distances (close-up and far away)</li>
+                    <li style="padding: 8px 0;">✓ Use clear, high-quality images (not blurry)</li>
+                </ul>
+                <button class="btn btn-primary" style="width: 100%; margin-top: 16px;" onclick="startTraining()">
+                    🚀 Start Training Model
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Detection Details Modal -->
+    <div id="detection-modal" class="modal">
+        <div class="modal-content">
+            <span class="modal-close" onclick="closeDetectionModal()">&times;</span>
+            <h2 id="modal-title">Detection Details</h2>
+            <div id="modal-body" style="margin-top: 20px;">
+                <!-- Dynamic content loaded here -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Car Modal -->
+    <div id="add-car-modal" class="modal">
+        <div class="modal-content">
+            <span class="modal-close" onclick="closeAddCarModal()">&times;</span>
+            <h2>Add Known Car</h2>
+            <div style="margin-top: 20px;">
+                <label style="display: block; margin-bottom: 12px;">
+                    <strong>Car ID:</strong>
+                    <input type="text" id="new-car-id" placeholder="e.g., my_car, neighbor_car" style="width: 100%; padding: 12px; border: 1px solid var(--gray-300); border-radius: 6px; margin-top: 4px;">
+                </label>
+                <label style="display: block; margin-bottom: 12px;">
+                    <strong>Owner Name:</strong>
+                    <input type="text" id="new-car-owner" placeholder="e.g., John Doe" style="width: 100%; padding: 12px; border: 1px solid var(--gray-300); border-radius: 6px; margin-top: 4px;">
+                </label>
+                <button class="btn btn-primary" style="width: 100%; margin-top: 16px;" onclick="addKnownCar()">
+                    Add Car
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/security.js"></script>
+</body>
+</html>
+
