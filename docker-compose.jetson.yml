@@ -2,16 +2,17 @@ version: '3.8'
 
 services:
   inference:
-    image: nvcr.io/nvidia/pytorch:24.09-py3
+    build:
+      context: .
+      dockerfile: Dockerfile.jetson
     container_name: homepi-inference
     runtime: nvidia
     ports:
       - "5001:5001"
     volumes:
-      - ./jetson_inference_server.py:/app/inference_server.py:ro
       - inference-cache:/root/.cache
-    working_dir: /app
-    command: python3 inference_server.py
+    shm_size: '2gb'
+    ipc: host
     restart: unless-stopped
     environment:
       - NVIDIA_VISIBLE_DEVICES=all
