@@ -253,6 +253,11 @@ def trigger_garage():
     return open_garage()
 
 
+def is_enabled():
+    """Check if Flipper Zero is enabled"""
+    return flipper_enabled
+
+
 def get_status():
     """Get Flipper connection status"""
     global flipper, flipper_enabled, last_command_time, flipper_config
