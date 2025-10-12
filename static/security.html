@@ -387,7 +387,10 @@
                 <div>
                     <h3 style="margin-bottom: 12px;">📹 Live Feed</h3>
                     <div class="live-feed-container">
-                        <img id="live-feed" src="" alt="Live Camera Feed" onerror="this.src='/api/placeholder/640/480'">
+                        <img id="live-feed" src="/api/security/live-feed" alt="Live Camera Feed" style="display: block;">
+                        <div id="feed-error" style="display: none; text-align: center; padding: 40px; color: var(--gray-600);">
+                            <p>📷 Waiting for camera feed...</p>
+                        </div>
                     </div>
                     
                     <!-- Pan-Tilt Controls -->
