@@ -370,6 +370,16 @@ def index():
     return response
 
 
+@app.route('/security')
+def security():
+    """Serve the security page"""
+    response = send_from_directory('static', 'security.html')
+    response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+    response.headers['Pragma'] = 'no-cache'
+    response.headers['Expires'] = '0'
+    return response
+
+
 @app.route('/api/songs', methods=['GET'])
 def get_songs():
     """Get list of all songs with duration"""
