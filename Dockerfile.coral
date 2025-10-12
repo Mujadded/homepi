@@ -1,0 +1,44 @@
+# Dockerfile for Coral TPU Detection Service
+# Uses Python 3.11 for pycoral compatibility
+
+FROM python:3.11-slim-bookworm
+
+# Set working directory
+WORKDIR /app
+
+# Install system dependencies for Coral TPU
+RUN apt-get update && apt-get install -y \
+    libusb-1.0-0 \
+    libopenblas-dev \
+    wget \
+    curl \
+    gnupg \
+    && rm -rf /var/lib/apt/lists/*
+
+# Add Coral TPU repository and install libedgetpu
+RUN echo "deb https://packages.cloud.google.com/apt coral-edgetpu-stable main" | tee /etc/apt/sources.list.d/coral-edgetpu.list && \
+    curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | apt-key add - && \
+    apt-get update && \
+    apt-get install -y libedgetpu1-std && \
+    rm -rf /var/lib/apt/lists/*
+
+# Install Python dependencies for detection
+COPY requirements-coral.txt .
+RUN pip install --no-cache-dir -r requirements-coral.txt
+
+# Copy detection modules
+COPY object_detector.py .
+COPY car_recognizer.py .
+
+# Copy models directory
+COPY models/ ./models/
+
+# Expose port for detection API
+EXPOSE 5001
+
+# Create detection service API
+COPY detection_service.py .
+
+# Run detection service
+CMD ["python", "detection_service.py"]
+

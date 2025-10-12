@@ -1,0 +1,47 @@
+version: '3.8'
+
+services:
+  coral-detector:
+    build:
+      context: .
+      dockerfile: Dockerfile.coral
+    container_name: homepi-coral-detector
+    restart: unless-stopped
+    
+    # Expose Coral TPU USB device to container
+    devices:
+      - /dev/bus/usb:/dev/bus/usb
+    
+    # Privileged mode for USB access
+    privileged: true
+    
+    ports:
+      - "5001:5001"
+    
+    volumes:
+      # Mount models directory
+      - ./models:/app/models:ro
+      
+      # Mount detection modules (for development)
+      - ./object_detector.py:/app/object_detector.py:ro
+      - ./car_recognizer.py:/app/car_recognizer.py:ro
+      - ./detection_service.py:/app/detection_service.py:ro
+    
+    environment:
+      - PYTHONUNBUFFERED=1
+    
+    networks:
+      - homepi-network
+    
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+networks:
+  homepi-network:
+    name: homepi-network
+    driver: bridge
+
