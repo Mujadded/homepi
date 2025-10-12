@@ -29,7 +29,7 @@
             "tracking_speed": 5
         },
         "detection": {
-            "remote_url": "http://jetson.local:5001",
+            "remote_url": "http://192.168.0.105:5001",
             "confidence_threshold": 0.6,
             "detection_interval": 0.1,
             "detection_timeout": 5,
