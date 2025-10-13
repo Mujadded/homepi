@@ -8,7 +8,7 @@ ssh mujadded@192.168.0.26
 
 # Check if Flipper is connected via USB
 ls -la /dev/ttyACM*
-# Expected output: /dev/ttyACM1 (or similar)
+# Expected output: /dev/ttyACM0 (or similar)
 
 # Check USB devices
 lsusb | grep -i flipper
@@ -22,7 +22,7 @@ lsusb | grep -i flipper
 sudo apt-get install screen -y
 
 # Connect to Flipper Zero via serial
-screen /dev/ttyACM1 115200
+screen /dev/ttyACM0 115200
 
 # You should see the Flipper CLI prompt: >:
 ```
@@ -59,7 +59,7 @@ import time
 
 try:
     # Connect to Flipper
-    flipper = serial.Serial('/dev/ttyACM1', 115200, timeout=2)
+    flipper = serial.Serial('/dev/ttyACM0', 115200, timeout=2)
     time.sleep(2)
     
     # Clear buffers
@@ -160,7 +160,7 @@ subghz tx
 
 ```bash
 # On Raspberry Pi
-echo "storage stat /ext/subghz/garage.sub" | screen -S flipper /dev/ttyACM1 115200
+echo "storage stat /ext/subghz/garage.sub" | screen -S flipper /dev/ttyACM0 115200
 ```
 
 ## Permissions Fix
@@ -175,7 +175,7 @@ sudo usermod -a -G dialout $USER
 newgrp dialout
 
 # Check permissions
-ls -l /dev/ttyACM1
+ls -l /dev/ttyACM0
 # Should show: crw-rw---- 1 root dialout
 ```
 

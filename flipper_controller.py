@@ -35,7 +35,7 @@ def load_config():
     except Exception as e:
         print(f"Error loading Flipper config: {e}")
         return {
-            'flipper_port': '/dev/ttyACM1',
+            'flipper_port': '/dev/ttyACM0',
             'garage_trigger': 'my_car',
             'auto_open': True,
             'cooldown_seconds': 300
@@ -47,7 +47,7 @@ def init_flipper(port=None, baudrate=115200, timeout=2):
     Initialize serial connection to Flipper Zero
     
     Args:
-        port: Serial port (e.g., /dev/ttyACM1)
+        port: Serial port (e.g., /dev/ttyACM0)
         baudrate: Baud rate for serial communication
         timeout: Read timeout in seconds
     """
@@ -60,7 +60,7 @@ def init_flipper(port=None, baudrate=115200, timeout=2):
     flipper_config = load_config()
     
     if not port:
-        port = flipper_config.get('flipper_port', '/dev/ttyACM1')
+        port = flipper_config.get('flipper_port', '/dev/ttyACM0')
     
     try:
         flipper = serial.Serial(
@@ -255,7 +255,7 @@ def get_status():
     return {
         'enabled': flipper_enabled,
         'connected': flipper is not None and flipper.is_open if flipper else False,
-        'port': flipper_config.get('flipper_port', '/dev/ttyACM1'),
+        'port': flipper_config.get('flipper_port', '/dev/ttyACM0'),
         'auto_open': flipper_config.get('auto_open', True),
         'cooldown_seconds': cooldown,
         'ready': time_since_last >= cooldown

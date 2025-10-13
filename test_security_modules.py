@@ -241,7 +241,7 @@ def test_flipper():
         print_success("Flipper controller module imported")
         
         # Find Flipper port
-        ports = ['/dev/ttyACM1', '/dev/ttyACM1', '/dev/ttyUSB0']
+        ports = ['/dev/ttyACM0', '/dev/ttyACM0', '/dev/ttyUSB0']
         print_info("Checking for Flipper on common ports...")
         
         connected = False

@@ -30,7 +30,7 @@ print("Flipper Zero Command Test")
 print("=" * 60)
 
 try:
-    flipper = serial.Serial('/dev/ttyACM1', 115200, timeout=2)
+    flipper = serial.Serial('/dev/ttyACM0', 115200, timeout=2)
     time.sleep(2)
     print("✓ Connected to Flipper\n")
     

@@ -12,8 +12,8 @@ print("=" * 50)
 
 try:
     # Connect to Flipper
-    print("\n1. Connecting to Flipper on /dev/ttyACM1...")
-    flipper = serial.Serial('/dev/ttyACM1', 115200, timeout=2)
+    print("\n1. Connecting to Flipper on /dev/ttyACM0...")
+    flipper = serial.Serial('/dev/ttyACM0', 115200, timeout=2)
     time.sleep(2)
     print("   ✓ Connected")
     

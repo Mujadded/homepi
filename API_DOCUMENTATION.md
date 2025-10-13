@@ -1163,7 +1163,7 @@ CREATE TABLE known_cars (
       "format": "mp4"
     },
     "automation": {
-      "flipper_port": "/dev/ttyACM1",
+      "flipper_port": "/dev/ttyACM0",
       "garage_trigger": "my_car",
       "auto_open": true,
       "cooldown_seconds": 300
