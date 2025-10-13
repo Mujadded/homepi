@@ -169,9 +169,15 @@ def test_connection():
 def open_garage():
     """
     Open garage door via Sub-GHz signal
-    Requires garage signal to be pre-recorded on Flipper at /ext/subghz/garage.sub
     
-    Uses the loader to start Sub-GHz app with the file
+    IMPORTANT: Due to Flipper firmware limitations, you must manually:
+    1. Open Sub-GHz app on Flipper
+    2. Load garage.sub file
+    3. Keep it on the transmit screen
+    
+    This function will then send the OK button press to trigger transmission.
+    
+    Note: Automatic app opening via CLI is not supported in current firmware.
     """
     global last_command_time, flipper_config
     
@@ -188,33 +194,24 @@ def open_garage():
     
     try:
         print("🚗 Opening garage door...")
-        print("Opening Sub-GHz app with garage.sub...")
+        print("⚠ IMPORTANT: Make sure Sub-GHz app is open with garage.sub loaded!")
         
-        # Step 1: Open Sub-GHz app with the file using loader
-        response = send_command("loader open subgz /ext/subghz/garage.sub", wait_response=True, timeout=3)
-        print(f"Loader response: {response}")
-        
-        # Wait for app to fully load
-        time.sleep(2)
-        
-        # Step 2: Press OK button to start transmission
+        # Send OK button press to trigger transmission
         print("Pressing OK button...")
-        response = send_command("input send ok press", wait_response=False, timeout=1)
+        send_command("input send ok press", wait_response=False, timeout=1)
         
-        # Step 3: Hold for 10 seconds (transmission duration)
+        # Hold for 10 seconds (transmission duration)
         print("Transmitting signal... (10 seconds)")
         time.sleep(10)
         
-        # Step 4: Release OK button
+        # Release OK button
         print("Releasing OK button...")
-        response = send_command("input send ok release", wait_response=False, timeout=1)
+        send_command("input send ok release", wait_response=False, timeout=1)
         
-        # Step 5: Wait a moment then close the app
         time.sleep(1)
-        print("Closing Sub-GHz app...")
-        send_command("loader close", wait_response=False, timeout=1)
         
         print("✓ Garage door command sent")
+        print("   (If garage didn't open, ensure Sub-GHz app was open with garage.sub loaded)")
         last_command_time = time.time()
         return True
         
