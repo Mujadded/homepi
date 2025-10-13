@@ -50,12 +50,13 @@ async function updateSecurityStatus() {
         if (status.detection_running) {
             btn.innerHTML = 'Stop Detection';
             btn.className = 'btn btn-danger';
-            startLiveFeed();
         } else {
             btn.innerHTML = 'Start Detection';
             btn.className = 'btn btn-success';
-            stopLiveFeed();
         }
+        
+        // In I/O mode, camera is always on, so keep feed running
+        // (Don't stop the feed based on detection status)
         
         securityEnabled = status.detection_running;
         
@@ -83,7 +84,6 @@ async function toggleDetection() {
 }
 
 // Live feed using canvas and snapshot polling (more reliable than MJPEG in img tag)
-let liveFeedInterval = null;
 let liveFeedCanvas = null;
 let liveFeedCtx = null;
 
