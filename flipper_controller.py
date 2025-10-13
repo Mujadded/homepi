@@ -214,11 +214,20 @@ def open_garage():
             if not response or "error" in response.lower() or "fail" in response.lower():
                 print(f"Failed to transmit: {response}")
                 return False
-        
-        # Wait for transmission
-        time.sleep(2)
+        else:
+            # Loader opened successfully, now we need to trigger transmission
+            # Wait a moment for the app to fully load
+            time.sleep(1)
+            
+            # Send input event to press OK button (this triggers transmission in Sub-GHz app)
+            print("Triggering transmission...")
+            send_command("input send short ok", wait_response=False, timeout=1)
+            
+            # Wait for transmission to complete
+            time.sleep(3)
         
         # Close the app (to return to CLI)
+        print("Closing Sub-GHz app...")
         send_command("loader close", wait_response=False, timeout=1)
         
         print("✓ Garage door command sent")
