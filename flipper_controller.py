@@ -188,56 +188,25 @@ def open_garage():
     
     try:
         print("🚗 Opening garage door...")
+        print("⚠ Make sure Sub-GHz app is open on Flipper with garage.sub loaded!")
+        print("   (Sub-GHz → Saved → garage)")
         
-        # Method 1: Try using loader to open Sub-GHz app with file
-        # This is more reliable across firmware versions
-        loader_cmd = "loader open SubGhz /ext/subghz/garage.sub"
-        print(f"Opening Sub-GHz app: {loader_cmd}")
-        response = send_command(loader_cmd, wait_response=True, timeout=5)
+        # Simply send OK button press to trigger transmission
+        # User should have Sub-GHz app open with garage.sub already loaded
+        print("Triggering transmission (holding OK button for 10 seconds)...")
         
-        if response and "error" in response.lower() and "fail" in response.lower():
-            print(f"Loader method failed: {response}")
-            print("Trying alternative method...")
-            
-            # Method 2: Try direct subghz commands (older firmware)
-            load_cmd = "subghz load /ext/subghz/garage.sub"
-            response = send_command(load_cmd, wait_response=True, timeout=5)
-            
-            if not response or "error" in response.lower() or "fail" in response.lower():
-                print(f"Failed to load signal: {response}")
-                return False
-            
-            # Transmit
-            tx_cmd = "subghz tx"
-            response = send_command(tx_cmd, wait_response=True, timeout=10)
-            
-            if not response or "error" in response.lower() or "fail" in response.lower():
-                print(f"Failed to transmit: {response}")
-                return False
-        else:
-            # Loader opened successfully, now we need to trigger transmission
-            # Wait a moment for the app to fully load
-            time.sleep(1)
-            
-            # Manually simulate holding OK button by press + wait + release
-            print("Triggering transmission (holding OK button for 10 seconds)...")
-            
-            # Press OK button down
-            send_command("input send press ok", wait_response=False, timeout=1)
-            
-            # Hold for 10 seconds (while button is "pressed")
-            print("Transmitting signal...")
-            time.sleep(10)
-            
-            # Release OK button
-            send_command("input send release ok", wait_response=False, timeout=1)
-            
-            # Wait a moment for cleanup
-            time.sleep(2)
+        # Press OK button down (correct syntax: input send ok press)
+        send_command("input send ok press", wait_response=False, timeout=1)
         
-        # Close the app (to return to CLI)
-        print("Closing Sub-GHz app...")
-        send_command("loader close", wait_response=False, timeout=1)
+        # Hold for 10 seconds (while transmitting)
+        print("Transmitting signal...")
+        time.sleep(10)
+        
+        # Release OK button (correct syntax: input send ok release)
+        send_command("input send ok release", wait_response=False, timeout=1)
+        
+        # Wait a moment for cleanup
+        time.sleep(1)
         
         print("✓ Garage door command sent")
         last_command_time = time.time()
