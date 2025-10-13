@@ -124,13 +124,14 @@ async def _send_message_async(message, chat_id=None):
     await bot.send_message(chat_id=chat_id, text=message, parse_mode='HTML')
 
 
-def send_notification(message, chat_id=None):
+def send_notification(message, chat_id=None, image_data=None):
     """
-    Send text notification
+    Send notification with optional image
     
     Args:
         message: Text message to send
         chat_id: Optional chat ID (uses config if not provided)
+        image_data: Optional base64-encoded image or file path
     """
     global bot, telegram_enabled, event_loop
     
@@ -143,11 +144,43 @@ def send_notification(message, chat_id=None):
         timestamp = datetime.now().strftime("%H:%M:%S")
         formatted_message = f"🏠 <b>HomePi Security</b>\n⏰ {timestamp}\n\n{message}"
         
-        # Send via event loop
-        future = asyncio.run_coroutine_threadsafe(
-            _send_message_async(formatted_message, chat_id),
-            event_loop
-        )
+        # If image provided, send with photo
+        if image_data:
+            import base64
+            import io
+            
+            # Check if it's base64 or file path
+            if isinstance(image_data, str) and os.path.exists(image_data):
+                # It's a file path
+                future = asyncio.run_coroutine_threadsafe(
+                    _send_photo_async(image_data, formatted_message, chat_id),
+                    event_loop
+                )
+            else:
+                # It's base64 data
+                try:
+                    image_bytes = base64.b64decode(image_data)
+                    image_file = io.BytesIO(image_bytes)
+                    image_file.name = 'detection.jpg'
+                    
+                    future = asyncio.run_coroutine_threadsafe(
+                        _send_photo_bytes_async(image_file, formatted_message, chat_id),
+                        event_loop
+                    )
+                except Exception as e:
+                    print(f"Error decoding image data: {e}")
+                    # Fall back to text only
+                    future = asyncio.run_coroutine_threadsafe(
+                        _send_message_async(formatted_message, chat_id),
+                        event_loop
+                    )
+        else:
+            # Text only
+            future = asyncio.run_coroutine_threadsafe(
+                _send_message_async(formatted_message, chat_id),
+                event_loop
+            )
+        
         future.result(timeout=10)
         
         print(f"✓ Telegram notification sent")
@@ -170,6 +203,19 @@ async def _send_photo_async(photo_path, caption=None, chat_id=None):
             caption=caption,
             parse_mode='HTML'
         )
+
+
+async def _send_photo_bytes_async(photo_bytes, caption=None, chat_id=None):
+    """Async function to send photo from bytes"""
+    if not chat_id:
+        chat_id = telegram_config.get('telegram_chat_id')
+    
+    await bot.send_photo(
+        chat_id=chat_id,
+        photo=photo_bytes,
+        caption=caption,
+        parse_mode='HTML'
+    )
 
 
 def send_photo(photo_path, caption=None, chat_id=None):

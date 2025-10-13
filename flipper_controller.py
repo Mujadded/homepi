@@ -169,7 +169,7 @@ def test_connection():
 def open_garage():
     """
     Open garage door via Sub-GHz signal
-    Requires garage signal to be pre-recorded on Flipper
+    Requires garage signal to be pre-recorded on Flipper at /ext/subghz/garage.sub
     """
     global last_command_time, flipper_config
     
@@ -187,11 +187,20 @@ def open_garage():
     try:
         print("🚗 Opening garage door...")
         
-        # Send Sub-GHz transmit command
-        # Path to your garage door signal file on Flipper
-        command = "subghz tx /ext/subghz/garage_open.sub"
+        # Use the Sub-GHz app to load and play the saved signal
+        # Step 1: Load the garage signal file
+        load_cmd = "subghz load /ext/subghz/garage.sub"
+        print(f"Loading signal: {load_cmd}")
+        response = send_command(load_cmd, wait_response=True, timeout=5)
         
-        response = send_command(command, wait_response=True, timeout=10)
+        if response and "error" in response.lower():
+            print(f"Failed to load signal: {response}")
+            return False
+        
+        # Step 2: Transmit the loaded signal
+        tx_cmd = "subghz tx"
+        print(f"Transmitting signal: {tx_cmd}")
+        response = send_command(tx_cmd, wait_response=True, timeout=10)
         
         if response and "error" not in response.lower():
             print("✓ Garage door command sent")
@@ -210,6 +219,7 @@ def close_garage():
     """
     Close garage door via Sub-GHz signal
     Requires separate close signal if your garage uses different signals
+    Note: Most garage doors use the same signal for open/close (toggle)
     """
     global last_command_time, flipper_config
     
@@ -227,10 +237,20 @@ def close_garage():
     try:
         print("🚗 Closing garage door...")
         
-        # Send Sub-GHz transmit command
-        command = "subghz tx /ext/subghz/garage_close.sub"
+        # Use the Sub-GHz app to load and play the saved signal
+        # Step 1: Load the garage signal file (same as open for most garages)
+        load_cmd = "subghz load /ext/subghz/garage.sub"
+        print(f"Loading signal: {load_cmd}")
+        response = send_command(load_cmd, wait_response=True, timeout=5)
         
-        response = send_command(command, wait_response=True, timeout=10)
+        if response and "error" in response.lower():
+            print(f"Failed to load signal: {response}")
+            return False
+        
+        # Step 2: Transmit the loaded signal
+        tx_cmd = "subghz tx"
+        print(f"Transmitting signal: {tx_cmd}")
+        response = send_command(tx_cmd, wait_response=True, timeout=10)
         
         if response and "error" not in response.lower():
             print("✓ Garage close command sent")
@@ -291,9 +311,13 @@ def cleanup():
 if __name__ == "__main__":
     # Test Flipper Zero functionality
     print("Testing Flipper Zero controller...")
-    print("\nNOTE: This will attempt to send garage door signal!")
-    print("Make sure your garage signal is recorded on Flipper at:")
-    print("  /ext/subghz/garage_open.sub")
+    print("\n⚠ NOTE: This will attempt to send garage door signal!")
+    print("\nMake sure your garage signal is saved on Flipper at:")
+    print("  /ext/subghz/garage.sub")
+    print("\nTo save your garage signal:")
+    print("  1. Go to Sub-GHz app on Flipper")
+    print("  2. Read your garage remote signal")
+    print("  3. Save it as 'garage' (will be saved to /ext/subghz/garage.sub)")
     
     response = input("\nContinue with test? (yes/no): ")
     if response.lower() != 'yes':
@@ -301,7 +325,7 @@ if __name__ == "__main__":
         exit(0)
     
     if init_flipper():
-        print("\nFlipper Zero initialized successfully")
+        print("\n✓ Flipper Zero initialized successfully")
         print(f"Status: {get_status()}")
         
         # Test connection
@@ -312,20 +336,22 @@ if __name__ == "__main__":
         
         # Test garage command (with confirmation)
         print("\n⚠ WARNING: About to send garage door signal!")
+        print("This will load and transmit /ext/subghz/garage.sub")
         confirm = input("Send garage command? (yes/no): ")
         
         if confirm.lower() == 'yes':
             if open_garage():
-                print("Garage command successful")
+                print("✓ Garage command successful")
             else:
-                print("Garage command failed")
+                print("✗ Garage command failed")
         
         cleanup()
     else:
-        print("\nFlipper Zero initialization failed")
+        print("\n✗ Flipper Zero initialization failed")
         print("\nTroubleshooting:")
         print("  1. Check Flipper is connected via USB")
         print("  2. Check correct port (ls /dev/ttyACM*)")
         print("  3. Check user has permission (add to dialout group)")
         print("  4. Ensure Flipper is not connected to qFlipper")
+        print("  5. Make sure garage.sub exists at /ext/subghz/garage.sub")
 

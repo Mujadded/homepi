@@ -12,8 +12,16 @@
         "type": "sense_hat",
         "read_interval": 30
     },
+    "jetson": {
+        "url": "http://192.168.0.105:5001",
+        "webhook_enabled": true,
+        "frame_streaming": true,
+        "webhook_url": "http://192.168.0.26:5000/api/webhook/detection"
+    },
     "security": {
         "enabled": true,
+        "mode": "io_only",
+        "local_detection": false,
         "camera": {
             "resolution": [1920, 1080],
             "fps": 30,

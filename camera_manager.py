@@ -116,6 +116,34 @@ def get_latest_frame():
     return None
 
 
+def get_single_frame_encoded():
+    """
+    Get single frame as base64-encoded JPEG for Jetson processing
+    Returns base64 string or None
+    """
+    import base64
+    
+    frame = get_frame()
+    if frame is None:
+        return None
+    
+    try:
+        import cv2
+        # Convert RGB to BGR for OpenCV
+        bgr_frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+        
+        # Encode frame to JPEG
+        _, jpeg = cv2.imencode('.jpg', bgr_frame, [cv2.IMWRITE_JPEG_QUALITY, 85])
+        
+        # Convert to base64
+        encoded = base64.b64encode(jpeg.tobytes()).decode('utf-8')
+        return encoded
+        
+    except Exception as e:
+        print(f"Error encoding frame: {e}")
+        return None
+
+
 def start_recording(filename=None):
     """Start recording video to file"""
     global recording, current_recording_file, camera

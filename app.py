@@ -1113,6 +1113,246 @@ def train_model():
         return jsonify({'error': str(e)}), 500
 
 
+# ============================================
+# Jetson Integration APIs (I/O Device Mode)
+# ============================================
+
+@app.route('/api/webhook/detection', methods=['POST'])
+def webhook_detection():
+    """
+    Receive detection results from Jetson Orin
+    
+    Expected payload:
+    {
+        "timestamp": "2025-10-12T20:15:30",
+        "object_type": "car",
+        "confidence": 0.87,
+        "bbox": [0.3, 0.2, 0.7, 0.8],
+        "car_id": "my_car",
+        "action": "open_garage",
+        "image_data": "base64_encoded_image"
+    }
+    """
+    if not SECURITY_AVAILABLE:
+        return jsonify({'error': 'Security system not available'}), 503
+    
+    try:
+        import security_manager
+        
+        data = request.json
+        
+        # Store detection in local database
+        detection_id = security_manager.save_detection_from_webhook(data)
+        
+        # Execute requested action
+        action = data.get('action')
+        if action == 'open_garage':
+            import flipper_controller
+            if flipper_controller.is_enabled():
+                flipper_controller.open_garage()
+        
+        # Send Telegram notification if image provided
+        if data.get('image_data'):
+            import telegram_notifier
+            if telegram_notifier.is_enabled():
+                message = f"🚨 {data['object_type'].title()} detected"
+                if data.get('car_id'):
+                    message += f" ({data['car_id']})"
+                message += f"\nConfidence: {data['confidence']:.1%}"
+                
+                telegram_notifier.send_notification(
+                    message=message,
+                    image_data=data.get('image_data')
+                )
+        
+        return jsonify({
+            'success': True,
+            'detection_id': detection_id,
+            'message': 'Detection processed'
+        })
+        
+    except Exception as e:
+        import traceback
+        return jsonify({
+            'error': str(e),
+            'traceback': traceback.format_exc()
+        }), 500
+
+
+@app.route('/api/camera/frame', methods=['GET'])
+def get_camera_frame():
+    """
+    Get single camera frame for Jetson processing
+    Returns base64-encoded JPEG image
+    """
+    if not SECURITY_AVAILABLE:
+        return jsonify({'error': 'Security system not available'}), 503
+    
+    try:
+        import camera_manager
+        
+        frame_data = camera_manager.get_single_frame_encoded()
+        
+        if frame_data:
+            return jsonify({
+                'success': True,
+                'frame': frame_data,
+                'timestamp': datetime.now().isoformat()
+            })
+        else:
+            return jsonify({'error': 'Failed to capture frame'}), 500
+            
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/pantilt/command', methods=['POST'])
+def pantilt_command():
+    """
+    Execute Pan-Tilt command from Jetson
+    
+    Payload:
+    {
+        "action": "move",
+        "pan": 15,
+        "tilt": -10,
+        "speed": 5
+    }
+    
+    Or:
+    {
+        "action": "home"
+    }
+    """
+    if not SECURITY_AVAILABLE:
+        return jsonify({'error': 'Security system not available'}), 503
+    
+    try:
+        import pantilt_controller
+        
+        data = request.json
+        action = data.get('action')
+        
+        if action == 'move':
+            pan = data.get('pan', 0)
+            tilt = data.get('tilt', 0)
+            speed = data.get('speed', 5)
+            
+            # Get current position
+            current = pantilt_controller.get_position()
+            
+            # Calculate new absolute position
+            new_pan = current['pan'] + pan
+            new_tilt = current['tilt'] + tilt
+            
+            # Move to new position
+            pantilt_controller.move_to(new_pan, new_tilt, speed)
+            position = pantilt_controller.get_position()
+            
+            return jsonify({
+                'success': True,
+                'position': position
+            })
+            
+        elif action == 'home':
+            pantilt_controller.home()
+            position = pantilt_controller.get_position()
+            
+            return jsonify({
+                'success': True,
+                'position': position
+            })
+            
+        else:
+            return jsonify({'error': 'Invalid action. Use "move" or "home"'}), 400
+            
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/telegram/send', methods=['POST'])
+def send_telegram_notification():
+    """
+    Send Telegram notification from Jetson
+    
+    Payload:
+    {
+        "message": "Car detected",
+        "image_data": "base64_encoded_image",
+        "chat_id": "optional_chat_id"
+    }
+    """
+    if not SECURITY_AVAILABLE:
+        return jsonify({'error': 'Security system not available'}), 503
+    
+    try:
+        import telegram_notifier
+        
+        if not telegram_notifier.is_enabled():
+            return jsonify({'error': 'Telegram not configured'}), 503
+        
+        data = request.json
+        message = data.get('message', 'Notification from HomePi')
+        image_data = data.get('image_data')
+        chat_id = data.get('chat_id')
+        
+        result = telegram_notifier.send_notification(
+            message=message,
+            image_data=image_data,
+            chat_id=chat_id
+        )
+        
+        if result:
+            return jsonify({
+                'success': True,
+                'message': 'Notification sent'
+            })
+        else:
+            return jsonify({'error': 'Failed to send notification'}), 500
+            
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/flipper/trigger', methods=['POST'])
+def trigger_flipper_action():
+    """
+    Trigger Flipper Zero action from Jetson
+    
+    Payload:
+    {
+        "action": "garage_open"
+    }
+    """
+    if not SECURITY_AVAILABLE:
+        return jsonify({'error': 'Security system not available'}), 503
+    
+    try:
+        import flipper_controller
+        
+        if not flipper_controller.is_enabled():
+            return jsonify({'error': 'Flipper Zero not configured'}), 503
+        
+        data = request.json
+        action = data.get('action')
+        
+        if action == 'garage_open':
+            result = flipper_controller.open_garage()
+            
+            if result:
+                return jsonify({
+                    'success': True,
+                    'message': 'Garage command sent'
+                })
+            else:
+                return jsonify({'error': 'Failed to send command'}), 500
+        else:
+            return jsonify({'error': 'Invalid action'}), 400
+            
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
 if __name__ == '__main__':
     # Load all schedules on startup
     reload_all_schedules()
@@ -1168,20 +1408,17 @@ if __name__ == '__main__':
     else:
         print("\n⚠ Pi HAT modules not loaded - running without display/sensors")
     
-    # Initialize Security System if available
+    # Initialize Security System if available (I/O Mode - No detection loop)
     if SECURITY_AVAILABLE:
-        print("\n🔐 Initializing Security System...")
-        if security_manager.init_security():
-            print("✓ Security system initialized")
-            
-            # Auto-start detection if enabled in config
-            with open('config.json', 'r') as f:
-                config = json.load(f)
-                if config.get('security', {}).get('enabled', False):
-                    if security_manager.start_detection():
-                        print("✓ Detection started automatically")
-                    else:
-                        print("⚠ Failed to start detection")
+        print("\n🔐 Initializing Security System (I/O Mode)...")
+        if security_manager.init_security_io_mode():
+            print("✓ Security I/O system initialized")
+            print("  - Camera: Ready for streaming")
+            print("  - Pan-Tilt: Ready for commands")
+            print("  - Telegram: Ready for notifications")
+            print("  - Flipper: Ready for automation")
+            print("  - Database: Ready for caching")
+            print("⚠ Detection loop disabled - Jetson Orin handles AI processing")
         else:
             print("⚠ Security system initialization failed")
     else:

@@ -96,10 +96,19 @@ def init_database():
 
 
 def init_security():
-    """Initialize all security components"""
+    """Initialize all security components (DEPRECATED - Use init_security_io_mode)"""
+    logger.warning("init_security() is deprecated. Use init_security_io_mode() for I/O device mode")
+    return init_security_io_mode()
+
+
+def init_security_io_mode():
+    """
+    Initialize security system in I/O mode (no detection loop)
+    Jetson Orin handles AI processing and sends results via webhook
+    """
     global security_enabled, security_config
     
-    logger.info("Initializing security system...")
+    logger.info("Initializing security system (I/O Mode)...")
     
     # Load configuration
     security_config = load_config()
@@ -108,32 +117,26 @@ def init_security():
         logger.info("Security system disabled in config")
         return False
     
-    # Initialize database
+    # Initialize database (for local caching of detections)
     if not init_database():
         logger.error("Failed to initialize database")
         return False
     
-    # Initialize camera
+    # Initialize camera (for streaming frames to Jetson)
     if not camera_manager.init_camera():
         logger.error("Failed to initialize camera")
         return False
     
-    # Initialize Pan-Tilt HAT
+    # Initialize Pan-Tilt HAT (for remote control from Jetson)
     if not pantilt_controller.init_pantilt():
-        logger.warning("Pan-Tilt HAT not available, tracking disabled")
+        logger.warning("Pan-Tilt HAT not available")
     
-    # Initialize object detector (remote inference)
-    remote_url = security_config.get('detection', {}).get('remote_url')
-    if not object_detector.init_detector(remote_url):
-        logger.error("Failed to initialize object detector")
-        return False
-    
-    # Initialize Flipper Zero (optional)
+    # Initialize Flipper Zero (for automation actions)
     flipper_port = security_config.get('automation', {}).get('flipper_port')
     if flipper_port:
         flipper_controller.init_flipper(flipper_port)
     
-    # Initialize Telegram (optional)
+    # Initialize Telegram (for notifications)
     telegram_config = security_config.get('notifications', {})
     if telegram_config.get('telegram_enabled'):
         bot_token = telegram_config.get('telegram_bot_token')
@@ -146,7 +149,7 @@ def init_security():
     Path('detections').mkdir(exist_ok=True)
     
     security_enabled = True
-    logger.info("✓ Security system initialized")
+    logger.info("✓ Security I/O system initialized (detection handled by Jetson)")
     return True
 
 
@@ -178,6 +181,66 @@ def save_detection(detection_data):
     except Exception as e:
         logger.error(f"Error saving detection: {e}")
         return None
+
+
+def save_detection_from_webhook(webhook_data):
+    """
+    Save detection from Jetson webhook to local database
+    
+    Args:
+        webhook_data: Dict containing detection info from Jetson
+            {
+                "timestamp": "2025-10-12T20:15:30",
+                "object_type": "car",
+                "confidence": 0.87,
+                "bbox": [0.3, 0.2, 0.7, 0.8],
+                "car_id": "my_car",
+                "action": "open_garage",
+                "image_data": "base64_encoded_image"
+            }
+    
+    Returns:
+        detection_id: ID of saved detection
+    """
+    import base64
+    
+    # Save image if provided
+    image_path = None
+    if webhook_data.get('image_data'):
+        try:
+            timestamp = webhook_data.get('timestamp', datetime.now().isoformat())
+            timestamp_str = timestamp.replace(':', '').replace('-', '').replace('T', '_')[:15]
+            object_type = webhook_data.get('object_type', 'unknown')
+            
+            image_filename = f"{object_type}_{timestamp_str}.jpg"
+            image_path = f"detections/{image_filename}"
+            
+            # Decode and save image
+            image_bytes = base64.b64decode(webhook_data['image_data'])
+            with open(image_path, 'wb') as f:
+                f.write(image_bytes)
+            
+            logger.info(f"Saved detection image: {image_path}")
+            
+        except Exception as e:
+            logger.error(f"Error saving detection image: {e}")
+    
+    # Prepare detection data for database
+    detection_data = {
+        'object_type': webhook_data.get('object_type'),
+        'car_id': webhook_data.get('car_id'),
+        'confidence': webhook_data.get('confidence'),
+        'bbox': webhook_data.get('bbox'),
+        'image_path': image_path,
+        'video_path': None,
+        'action_taken': webhook_data.get('action')
+    }
+    
+    # Save to database
+    detection_id = save_detection(detection_data)
+    logger.info(f"Saved detection from webhook: ID={detection_id}, type={webhook_data.get('object_type')}")
+    
+    return detection_id
 
 
 def get_recent_detections(limit=20):
