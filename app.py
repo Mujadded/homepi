@@ -923,6 +923,9 @@ def live_feed():
         import time
         import camera_manager
         
+        print("📹 Live feed stream started")
+        frame_count = 0
+        
         while True:
             try:
                 # Get current frame from camera
@@ -938,11 +941,22 @@ def live_feed():
                     # Yield frame in MJPEG format
                     yield (b'--frame\r\n'
                            b'Content-Type: image/jpeg\r\n\r\n' + jpeg.tobytes() + b'\r\n')
+                    
+                    frame_count += 1
+                    if frame_count % 30 == 0:  # Log every 30 frames (~1 second)
+                        print(f"📹 Streamed {frame_count} frames")
+                else:
+                    print("⚠ No frame available from camera")
                 
                 time.sleep(0.033)  # ~30 FPS
                 
+            except GeneratorExit:
+                print(f"📹 Live feed stream ended (streamed {frame_count} frames)")
+                break
             except Exception as e:
                 print(f"Error in live feed: {e}")
+                import traceback
+                traceback.print_exc()
                 time.sleep(0.1)
     
     from flask import Response
