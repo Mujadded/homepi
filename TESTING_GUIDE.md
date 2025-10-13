@@ -169,7 +169,7 @@ Select test to run:
 
 **Expected output:**
 ```
-✓ Flipper connected on /dev/ttyACM0
+✓ Flipper connected on /dev/ttyACM1
 ✓ Flipper is responding
 ✓ Garage command sent successfully
 ```

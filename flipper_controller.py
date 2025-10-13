@@ -35,7 +35,7 @@ def load_config():
     except Exception as e:
         print(f"Error loading Flipper config: {e}")
         return {
-            'flipper_port': '/dev/ttyACM0',
+            'flipper_port': '/dev/ttyACM1',
             'garage_trigger': 'my_car',
             'auto_open': True,
             'cooldown_seconds': 300
@@ -47,7 +47,7 @@ def init_flipper(port=None, baudrate=115200, timeout=2):
     Initialize serial connection to Flipper Zero
     
     Args:
-        port: Serial port (e.g., /dev/ttyACM0)
+        port: Serial port (e.g., /dev/ttyACM1)
         baudrate: Baud rate for serial communication
         timeout: Read timeout in seconds
     """
@@ -60,7 +60,7 @@ def init_flipper(port=None, baudrate=115200, timeout=2):
     flipper_config = load_config()
     
     if not port:
-        port = flipper_config.get('flipper_port', '/dev/ttyACM0')
+        port = flipper_config.get('flipper_port', '/dev/ttyACM1')
     
     try:
         flipper = serial.Serial(
@@ -170,6 +170,8 @@ def open_garage():
     """
     Open garage door via Sub-GHz signal
     Requires garage signal to be pre-recorded on Flipper at /ext/subghz/garage.sub
+    
+    Uses the loader to start Sub-GHz app with the file
     """
     global last_command_time, flipper_config
     
@@ -187,28 +189,41 @@ def open_garage():
     try:
         print("🚗 Opening garage door...")
         
-        # Use the Sub-GHz app to load and play the saved signal
-        # Step 1: Load the garage signal file
-        load_cmd = "subghz load /ext/subghz/garage.sub"
-        print(f"Loading signal: {load_cmd}")
-        response = send_command(load_cmd, wait_response=True, timeout=5)
+        # Method 1: Try using loader to open Sub-GHz app with file
+        # This is more reliable across firmware versions
+        loader_cmd = "loader open SubGhz /ext/subghz/garage.sub"
+        print(f"Opening Sub-GHz app: {loader_cmd}")
+        response = send_command(loader_cmd, wait_response=True, timeout=5)
         
-        if response and "error" in response.lower():
-            print(f"Failed to load signal: {response}")
-            return False
+        if response and "error" in response.lower() and "fail" in response.lower():
+            print(f"Loader method failed: {response}")
+            print("Trying alternative method...")
+            
+            # Method 2: Try direct subghz commands (older firmware)
+            load_cmd = "subghz load /ext/subghz/garage.sub"
+            response = send_command(load_cmd, wait_response=True, timeout=5)
+            
+            if not response or "error" in response.lower() or "fail" in response.lower():
+                print(f"Failed to load signal: {response}")
+                return False
+            
+            # Transmit
+            tx_cmd = "subghz tx"
+            response = send_command(tx_cmd, wait_response=True, timeout=10)
+            
+            if not response or "error" in response.lower() or "fail" in response.lower():
+                print(f"Failed to transmit: {response}")
+                return False
         
-        # Step 2: Transmit the loaded signal
-        tx_cmd = "subghz tx"
-        print(f"Transmitting signal: {tx_cmd}")
-        response = send_command(tx_cmd, wait_response=True, timeout=10)
+        # Wait for transmission
+        time.sleep(2)
         
-        if response and "error" not in response.lower():
-            print("✓ Garage door command sent")
-            last_command_time = time.time()
-            return True
-        else:
-            print(f"Garage command failed: {response}")
-            return False
+        # Close the app (to return to CLI)
+        send_command("loader close", wait_response=False, timeout=1)
+        
+        print("✓ Garage door command sent")
+        last_command_time = time.time()
+        return True
         
     except Exception as e:
         print(f"Error opening garage: {e}")
@@ -218,51 +233,10 @@ def open_garage():
 def close_garage():
     """
     Close garage door via Sub-GHz signal
-    Requires separate close signal if your garage uses different signals
     Note: Most garage doors use the same signal for open/close (toggle)
     """
-    global last_command_time, flipper_config
-    
-    if not flipper_enabled:
-        print("Flipper not enabled")
-        return False
-    
-    # Check cooldown
-    cooldown = flipper_config.get('cooldown_seconds', 300)
-    if time.time() - last_command_time < cooldown:
-        remaining = int(cooldown - (time.time() - last_command_time))
-        print(f"Garage command on cooldown ({remaining}s remaining)")
-        return False
-    
-    try:
-        print("🚗 Closing garage door...")
-        
-        # Use the Sub-GHz app to load and play the saved signal
-        # Step 1: Load the garage signal file (same as open for most garages)
-        load_cmd = "subghz load /ext/subghz/garage.sub"
-        print(f"Loading signal: {load_cmd}")
-        response = send_command(load_cmd, wait_response=True, timeout=5)
-        
-        if response and "error" in response.lower():
-            print(f"Failed to load signal: {response}")
-            return False
-        
-        # Step 2: Transmit the loaded signal
-        tx_cmd = "subghz tx"
-        print(f"Transmitting signal: {tx_cmd}")
-        response = send_command(tx_cmd, wait_response=True, timeout=10)
-        
-        if response and "error" not in response.lower():
-            print("✓ Garage close command sent")
-            last_command_time = time.time()
-            return True
-        else:
-            print(f"Garage close failed: {response}")
-            return False
-        
-    except Exception as e:
-        print(f"Error closing garage: {e}")
-        return False
+    # Most garage doors toggle, so just call open_garage
+    return open_garage()
 
 
 def trigger_garage():
@@ -288,7 +262,7 @@ def get_status():
     return {
         'enabled': flipper_enabled,
         'connected': flipper is not None and flipper.is_open if flipper else False,
-        'port': flipper_config.get('flipper_port', '/dev/ttyACM0'),
+        'port': flipper_config.get('flipper_port', '/dev/ttyACM1'),
         'auto_open': flipper_config.get('auto_open', True),
         'cooldown_seconds': cooldown,
         'ready': time_since_last >= cooldown

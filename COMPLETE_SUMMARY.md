@@ -134,7 +134,7 @@ Follow `TRAINING_GUIDE.md`:
 - ✅ AI detection loop active (10 FPS)
 - ✅ Jetson Orin connected (192.168.0.105:5001)
 - ✅ Pan-Tilt HAT operational
-- ✅ Flipper Zero connected (/dev/ttyACM0)
+- ✅ Flipper Zero connected (/dev/ttyACM1)
 - ✅ Telegram bot active
 - ✅ Database initialized
 
