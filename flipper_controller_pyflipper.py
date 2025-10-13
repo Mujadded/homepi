@@ -35,7 +35,7 @@ def load_config():
     except Exception as e:
         print(f"Error loading Flipper config: {e}")
         return {
-            'flipper_port': '/dev/ttyACM1',
+            'flipper_port': '/dev/ttyACM0',
             'garage_trigger': 'my_car',
             'auto_open': True,
             'cooldown_seconds': 300
@@ -47,7 +47,7 @@ def init_flipper(port=None):
     Initialize PyFlipper connection to Flipper Zero
     
     Args:
-        port: Serial port (e.g., /dev/ttyACM1)
+        port: Serial port (e.g., /dev/ttyACM0)
     """
     global flipper, flipper_enabled, flipper_config
     
@@ -59,7 +59,7 @@ def init_flipper(port=None):
     flipper_config = load_config()
     
     if not port:
-        port = flipper_config.get('flipper_port', '/dev/ttyACM1')
+        port = flipper_config.get('flipper_port', '/dev/ttyACM0')
     
     try:
         # Initialize PyFlipper
@@ -88,8 +88,8 @@ def open_garage():
     """
     Open garage door via Sub-GHz signal using PyFlipper
     
-    This uses PyFlipper's tx_from_file method which is much more reliable
-    than trying to control via CLI commands.
+    Requires Sub-GHz app to be open with garage.sub loaded.
+    Uses PyFlipper's input.send() to press and hold OK button for 10 seconds.
     """
     global last_command_time, flipper_config
     
@@ -106,10 +106,21 @@ def open_garage():
     
     try:
         print("🚗 Opening garage door...")
+        print("⚠ Make sure Sub-GHz app is open with garage.sub loaded!")
         
-        # Use PyFlipper's subghz.tx_from_file method
-        # This directly transmits the .sub file - much more reliable!
-        flipper.subghz.tx_from_file("/ext/subghz/garage.sub")
+        # Press OK button
+        print("Pressing OK button...")
+        flipper.input.send("ok", "press")
+        
+        # Hold for 10 seconds (transmission duration)
+        print("Transmitting signal... (10 seconds)")
+        time.sleep(10)
+        
+        # Release OK button
+        print("Releasing OK button...")
+        flipper.input.send("ok", "release")
+        
+        time.sleep(1)
         
         print("✓ Garage door command sent")
         last_command_time = time.time()
@@ -152,7 +163,7 @@ def get_status():
     return {
         'enabled': flipper_enabled,
         'connected': flipper is not None,
-        'port': flipper_config.get('flipper_port', '/dev/ttyACM1'),
+        'port': flipper_config.get('flipper_port', '/dev/ttyACM0'),
         'auto_open': flipper_config.get('auto_open', True),
         'cooldown_seconds': cooldown,
         'ready': time_since_last >= cooldown
