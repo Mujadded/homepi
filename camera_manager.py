@@ -30,6 +30,12 @@ current_recording_file = None
 frame_lock = threading.Lock()
 latest_frame = None
 
+# Shared frame buffer for streaming to multiple clients
+frame_buffer = None
+frame_buffer_lock = threading.Lock()
+capture_thread = None
+capture_thread_running = False
+
 
 def load_config():
     """Load camera configuration from config.json"""
@@ -49,9 +55,69 @@ def load_config():
         }
 
 
+def _continuous_capture():
+    """Background thread that continuously captures frames for streaming"""
+    global frame_buffer, frame_buffer_lock, capture_thread_running, camera, camera_enabled
+    
+    print("📹 Starting continuous capture thread")
+    frame_count = 0
+    
+    # Wait for camera to be ready
+    for i in range(50):  # Wait up to 5 seconds
+        if camera and camera_enabled:
+            break
+        time.sleep(0.1)
+    
+    if not camera or not camera_enabled:
+        print("❌ Camera not ready for continuous capture")
+        return
+    
+    print("✓ Continuous capture thread ready")
+    
+    # Test first capture
+    try:
+        test_frame = camera.capture_array()
+        print(f"✓ Test capture successful: {test_frame.shape}")
+    except Exception as e:
+        print(f"❌ Test capture failed: {e}")
+        import traceback
+        traceback.print_exc()
+        return
+    
+    while capture_thread_running:
+        try:
+            if camera and camera_enabled:
+                # Capture frame
+                frame = camera.capture_array()
+                
+                # Update shared buffer
+                with frame_buffer_lock:
+                    frame_buffer = frame.copy()
+                
+                frame_count += 1
+                if frame_count == 1:
+                    print(f"✓ First frame captured: {frame.shape}")
+                if frame_count % 300 == 0:  # Log every 300 frames (~10 seconds)
+                    print(f"📹 Captured {frame_count} frames")
+                
+                # Small delay to control frame rate (~30 FPS)
+                time.sleep(0.033)
+            else:
+                print("⚠ Camera became unavailable")
+                time.sleep(0.1)
+                
+        except Exception as e:
+            print(f"❌ Error in continuous capture: {e}")
+            import traceback
+            traceback.print_exc()
+            time.sleep(0.1)
+    
+    print("📹 Continuous capture thread stopped")
+
+
 def init_camera():
     """Initialize Picamera2 with configuration"""
-    global camera, camera_enabled, camera_config
+    global camera, camera_enabled, camera_config, capture_thread, capture_thread_running
     
     if not camera_available:
         print("Camera modules not available")
@@ -80,6 +146,12 @@ def init_camera():
         time.sleep(2)  # Allow camera to warm up
         
         camera_enabled = True
+        
+        # Start continuous capture thread for streaming
+        capture_thread_running = True
+        capture_thread = threading.Thread(target=_continuous_capture, daemon=True)
+        capture_thread.start()
+        
         print("✓ Camera initialized successfully")
         return True
         
@@ -90,30 +162,36 @@ def init_camera():
 
 
 def get_frame():
-    """Get current frame from camera for detection"""
-    global latest_frame, frame_lock
+    """Get current frame from shared buffer (for detection and single captures)"""
+    global frame_buffer, frame_buffer_lock
     
-    if not camera or not camera_enabled:
+    if not camera_enabled:
         return None
     
     try:
-        with frame_lock:
-            frame = camera.capture_array()
-            latest_frame = frame.copy()
-            return latest_frame
+        with frame_buffer_lock:
+            if frame_buffer is not None:
+                return frame_buffer.copy()
+        return None
     except Exception as e:
-        print(f"Error capturing frame: {e}")
+        print(f"Error getting frame: {e}")
         return None
 
 
 def get_latest_frame():
-    """Get the most recently captured frame (non-blocking)"""
-    global latest_frame, frame_lock
+    """Get the most recently captured frame (non-blocking) - alias for get_frame()"""
+    return get_frame()
+
+
+def get_frame_for_streaming():
+    """Get current frame from shared buffer for streaming (no copy needed)"""
+    global frame_buffer, frame_buffer_lock
     
-    with frame_lock:
-        if latest_frame is not None:
-            return latest_frame.copy()
-    return None
+    if not camera_enabled:
+        return None
+    
+    with frame_buffer_lock:
+        return frame_buffer
 
 
 def get_single_frame_encoded():
@@ -258,7 +336,13 @@ def is_enabled():
 
 def stop_camera():
     """Stop camera and cleanup"""
-    global camera, camera_enabled, recording
+    global camera, camera_enabled, recording, capture_thread_running, capture_thread
+    
+    # Stop capture thread
+    if capture_thread_running:
+        capture_thread_running = False
+        if capture_thread:
+            capture_thread.join(timeout=2)
     
     if recording:
         stop_recording()

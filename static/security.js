@@ -4,6 +4,9 @@ let liveFeedInterval = null;
 
 // Initialize security section
 async function initSecurity() {
+    // Start live feed immediately (camera is always on in I/O mode)
+    startLiveFeed();
+    
     updateSecurityStatus();
     loadRecentDetections();
     loadKnownCars();
@@ -79,18 +82,80 @@ async function toggleDetection() {
     }
 }
 
+// Live feed using canvas and snapshot polling (more reliable than MJPEG in img tag)
+let liveFeedInterval = null;
+let liveFeedCanvas = null;
+let liveFeedCtx = null;
+
 // Start live feed
 function startLiveFeed() {
-    if (!liveFeedInterval) {
-        const img = document.getElementById('live-feed');
-        img.src = '/api/security/live-feed?' + new Date().getTime();
+    const canvas = document.getElementById('live-feed-canvas');
+    const errorDiv = document.getElementById('feed-error');
+    
+    if (!canvas) {
+        console.error('Canvas element not found');
+        return;
+    }
+    
+    liveFeedCanvas = canvas;
+    liveFeedCtx = canvas.getContext('2d');
+    
+    // Show canvas, hide error
+    canvas.style.display = 'block';
+    errorDiv.style.display = 'none';
+    
+    console.log('Live feed started (snapshot mode)');
+    
+    // Start polling for frames
+    updateLiveFeed();
+    if (liveFeedInterval) {
+        clearInterval(liveFeedInterval);
+    }
+    liveFeedInterval = setInterval(updateLiveFeed, 100); // 10 FPS (adjust as needed)
+}
+
+// Update live feed with latest snapshot
+async function updateLiveFeed() {
+    if (!liveFeedCanvas || !liveFeedCtx) return;
+    
+    try {
+        const img = new Image();
+        
+        img.onload = function() {
+            // Set canvas size to match image on first load
+            if (liveFeedCanvas.width !== img.width || liveFeedCanvas.height !== img.height) {
+                liveFeedCanvas.width = img.width;
+                liveFeedCanvas.height = img.height;
+            }
+            
+            // Draw image on canvas
+            liveFeedCtx.drawImage(img, 0, 0);
+        };
+        
+        img.onerror = function() {
+            console.error('Failed to load frame');
+        };
+        
+        // Load latest snapshot with cache-busting
+        img.src = '/api/security/snapshot?' + new Date().getTime();
+        
+    } catch (error) {
+        console.error('Error updating live feed:', error);
     }
 }
 
 // Stop live feed
 function stopLiveFeed() {
-    const img = document.getElementById('live-feed');
-    img.src = '';
+    if (liveFeedInterval) {
+        clearInterval(liveFeedInterval);
+        liveFeedInterval = null;
+    }
+    
+    if (liveFeedCanvas) {
+        liveFeedCanvas.style.display = 'none';
+    }
+    
+    console.log('Live feed stopped');
 }
 
 // Pan-Tilt control

@@ -952,26 +952,29 @@ def get_snapshot():
 
 @app.route('/api/security/live-feed')
 def live_feed():
-    """MJPEG live camera stream"""
+    """MJPEG live camera stream (supports multiple concurrent clients)"""
     if not SECURITY_AVAILABLE:
         return jsonify({'error': 'Security system not available'}), 503
     
     import sys
-    print("📹 Live feed endpoint called", file=sys.stderr, flush=True)
+    import uuid
+    
+    client_id = str(uuid.uuid4())[:8]
+    print(f"📹 Live feed client connected: {client_id}", file=sys.stderr, flush=True)
     
     def generate():
-        """Generate MJPEG stream from camera frames"""
+        """Generate MJPEG stream from shared camera buffer"""
         import cv2
         import time
         import camera_manager
+        import numpy as np
         
-        print("📹 Live feed generator started", file=sys.stderr, flush=True)
         frame_count = 0
         
-        while True:
-            try:
-                # Get current frame from camera
-                frame = camera_manager.get_frame()
+        try:
+            while True:
+                # Get current frame from shared buffer (non-blocking)
+                frame = camera_manager.get_frame_for_streaming()
                 
                 if frame is not None:
                     # Convert RGB to BGR for OpenCV
@@ -985,21 +988,23 @@ def live_feed():
                            b'Content-Type: image/jpeg\r\n\r\n' + jpeg.tobytes() + b'\r\n')
                     
                     frame_count += 1
-                    if frame_count % 30 == 0:  # Log every 30 frames (~1 second)
-                        print(f"📹 Streamed {frame_count} frames", file=sys.stderr, flush=True)
+                    
+                    if frame_count % 90 == 0:  # Log every 90 frames (~3 seconds)
+                        print(f"📹 Client {client_id}: {frame_count} frames", file=sys.stderr, flush=True)
                 else:
-                    print("⚠ No frame available from camera", file=sys.stderr, flush=True)
+                    # No frame available yet, wait a bit
+                    if frame_count == 0:
+                        print(f"⚠ Client {client_id}: Waiting for first frame...", file=sys.stderr, flush=True)
                 
-                time.sleep(0.033)  # ~30 FPS
+                # Wait for next frame (30 FPS)
+                time.sleep(0.033)
                 
-            except GeneratorExit:
-                print(f"📹 Live feed stream ended (streamed {frame_count} frames)", file=sys.stderr, flush=True)
-                break
-            except Exception as e:
-                print(f"Error in live feed: {e}", file=sys.stderr, flush=True)
-                import traceback
-                traceback.print_exc()
-                time.sleep(0.1)
+        except GeneratorExit:
+            print(f"📹 Client {client_id} disconnected ({frame_count} frames)", file=sys.stderr, flush=True)
+        except Exception as e:
+            print(f"❌ Error in client {client_id}: {e}", file=sys.stderr, flush=True)
+            import traceback
+            traceback.print_exc()
     
     from flask import Response
     return Response(generate(), mimetype='multipart/x-mixed-replace; boundary=frame')
