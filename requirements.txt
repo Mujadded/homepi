@@ -15,7 +15,7 @@ RPi.GPIO
 # Security System Dependencies
 # picamera2 and opencv-python should be installed from system packages
 pantilthat
-pyserial
+pyflipper  # Flipper Zero control library
 python-telegram-bot==20.7
 numpy
 requests  # For remote AI service communication

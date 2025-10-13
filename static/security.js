@@ -427,6 +427,31 @@ async function startTraining() {
     }
 });
 
+// Garage door control
+async function openGarage() {
+    if (!confirm('⚠ Open garage door?\n\nMake sure Sub-GHz app is open on Flipper with garage.sub loaded!')) {
+        return;
+    }
+    
+    try {
+        const response = await fetch('/api/flipper/trigger', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'garage_open' })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            alert('✓ Garage door command sent!');
+        } else {
+            alert('✗ Failed to send garage command: ' + (result.error || 'Unknown error'));
+        }
+    } catch (error) {
+        alert('✗ Error: ' + error.message);
+    }
+}
+
 // Initialize on page load
 if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', initSecurity);
