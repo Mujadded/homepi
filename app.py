@@ -911,11 +911,53 @@ def delete_known_car(car_id):
         return jsonify({'error': str(e)}), 500
 
 
+@app.route('/api/security/snapshot')
+def get_snapshot():
+    """Get a single snapshot from camera for testing"""
+    if not SECURITY_AVAILABLE:
+        return jsonify({'error': 'Security system not available'}), 503
+    
+    try:
+        import cv2
+        import camera_manager
+        from flask import Response
+        
+        print("📸 Snapshot requested")
+        
+        # Get current frame from camera
+        frame = camera_manager.get_frame()
+        
+        if frame is None:
+            print("⚠ No frame available from camera")
+            return jsonify({'error': 'No frame available'}), 500
+        
+        print(f"📸 Got frame: {frame.shape}")
+        
+        # Convert RGB to BGR for OpenCV
+        bgr_frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+        
+        # Encode frame to JPEG
+        _, jpeg = cv2.imencode('.jpg', bgr_frame, [cv2.IMWRITE_JPEG_QUALITY, 85])
+        
+        print(f"📸 Encoded JPEG: {len(jpeg)} bytes")
+        
+        return Response(jpeg.tobytes(), mimetype='image/jpeg')
+        
+    except Exception as e:
+        print(f"Error getting snapshot: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+
+
 @app.route('/api/security/live-feed')
 def live_feed():
     """MJPEG live camera stream"""
     if not SECURITY_AVAILABLE:
         return jsonify({'error': 'Security system not available'}), 503
+    
+    import sys
+    print("📹 Live feed endpoint called", file=sys.stderr, flush=True)
     
     def generate():
         """Generate MJPEG stream from camera frames"""
@@ -923,7 +965,7 @@ def live_feed():
         import time
         import camera_manager
         
-        print("📹 Live feed stream started")
+        print("📹 Live feed generator started", file=sys.stderr, flush=True)
         frame_count = 0
         
         while True:
@@ -944,17 +986,17 @@ def live_feed():
                     
                     frame_count += 1
                     if frame_count % 30 == 0:  # Log every 30 frames (~1 second)
-                        print(f"📹 Streamed {frame_count} frames")
+                        print(f"📹 Streamed {frame_count} frames", file=sys.stderr, flush=True)
                 else:
-                    print("⚠ No frame available from camera")
+                    print("⚠ No frame available from camera", file=sys.stderr, flush=True)
                 
                 time.sleep(0.033)  # ~30 FPS
                 
             except GeneratorExit:
-                print(f"📹 Live feed stream ended (streamed {frame_count} frames)")
+                print(f"📹 Live feed stream ended (streamed {frame_count} frames)", file=sys.stderr, flush=True)
                 break
             except Exception as e:
-                print(f"Error in live feed: {e}")
+                print(f"Error in live feed: {e}", file=sys.stderr, flush=True)
                 import traceback
                 traceback.print_exc()
                 time.sleep(0.1)
