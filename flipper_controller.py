@@ -1,19 +1,20 @@
 """
 Flipper Zero Controller for HomePi Security System
-Serial communication with Flipper Zero for garage automation
+Uses PyFlipper library for reliable Flipper Zero control
 """
 
 import json
 import time
 import threading
 
-# Serial communication
-serial_available = False
+# PyFlipper library
+pyflipper_available = False
 try:
-    import serial
-    serial_available = True
+    from pyflipper import PyFlipper
+    pyflipper_available = True
 except ImportError as e:
-    print(f"⚠ Serial module not available: {e}")
+    print(f"⚠ PyFlipper module not available: {e}")
+    print(f"   Install with: pip install pyflipper")
 
 # Global Flipper state
 flipper = None
