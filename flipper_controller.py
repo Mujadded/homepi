@@ -219,12 +219,12 @@ def open_garage():
             # Wait a moment for the app to fully load
             time.sleep(1)
             
-            # Send input event to press OK button (this triggers transmission in Sub-GHz app)
-            print("Triggering transmission...")
-            send_command("input send short ok", wait_response=False, timeout=1)
+            # Send input event to HOLD OK button (Sub-GHz requires long press to transmit)
+            print("Triggering transmission (holding OK button for 10 seconds)...")
+            send_command("input send long ok", wait_response=False, timeout=1)
             
-            # Wait for transmission to complete
-            time.sleep(3)
+            # Wait for the long press transmission to complete (10+ seconds)
+            time.sleep(12)
         
         # Close the app (to return to CLI)
         print("Closing Sub-GHz app...")
