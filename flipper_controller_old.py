@@ -20,6 +20,7 @@ except ImportError as e:
 flipper = None
 flipper_config = {}
 flipper_enabled = False
+flipper_lock = threading.Lock()
 last_command_time = 0
 
 
@@ -42,18 +43,19 @@ def load_config():
         }
 
 
-def init_flipper(port=None):
+def init_flipper(port=None, baudrate=115200, timeout=2):
     """
-    Initialize PyFlipper connection to Flipper Zero
+    Initialize serial connection to Flipper Zero
     
     Args:
         port: Serial port (e.g., /dev/ttyACM0)
+        baudrate: Baud rate for serial communication
+        timeout: Read timeout in seconds
     """
     global flipper, flipper_enabled, flipper_config
     
-    if not pyflipper_available:
-        print("PyFlipper module not available")
-        print("Install with: pip install pyflipper")
+    if not serial_available:
+        print("Serial module not available")
         return False
     
     flipper_config = load_config()
@@ -62,34 +64,121 @@ def init_flipper(port=None):
         port = flipper_config.get('flipper_port', '/dev/ttyACM0')
     
     try:
-        # Initialize PyFlipper
-        flipper = PyFlipper(com=port)
+        flipper = serial.Serial(
+            port=port,
+            baudrate=baudrate,
+            timeout=timeout,
+            write_timeout=timeout
+        )
+        
+        # Wait for connection
+        time.sleep(2)
+        
+        # Flush buffers
+        flipper.reset_input_buffer()
+        flipper.reset_output_buffer()
         
         flipper_enabled = True
         print(f"✓ Flipper Zero connected on {port}")
         
-        # Test connection by getting device info
-        try:
-            info = flipper.device_info.info()
-            print(f"  Device: {info.get('hardware_name', 'Unknown')}")
+        # Test connection
+        if test_connection():
             return True
-        except:
-            print("  Warning: Could not get device info, but connection established")
-            return True
+        else:
+            print("Flipper connected but not responding")
+            return False
         
-    except Exception as e:
+    except serial.SerialException as e:
         print(f"Error connecting to Flipper Zero: {e}")
         print(f"  Check that Flipper is connected to {port}")
         flipper_enabled = False
+        return False
+    except Exception as e:
+        print(f"Unexpected error initializing Flipper: {e}")
+        flipper_enabled = False
+        return False
+
+
+def send_command(command, wait_response=True, timeout=5):
+    """
+    Send command to Flipper Zero
+    
+    Args:
+        command: Command string to send
+        wait_response: Wait for response
+        timeout: Response timeout in seconds
+    
+    Returns:
+        Response string or None
+    """
+    global flipper, flipper_lock
+    
+    if not flipper or not flipper_enabled:
+        print("Flipper not connected")
+        return None
+    
+    try:
+        with flipper_lock:
+            # Clear buffers
+            flipper.reset_input_buffer()
+            flipper.reset_output_buffer()
+            
+            # Send command (add newline if not present)
+            if not command.endswith('\n'):
+                command += '\n'
+            
+            flipper.write(command.encode('utf-8'))
+            flipper.flush()
+            
+            if wait_response:
+                # Wait for response
+                start_time = time.time()
+                response = b''
+                
+                while (time.time() - start_time) < timeout:
+                    if flipper.in_waiting > 0:
+                        chunk = flipper.read(flipper.in_waiting)
+                        response += chunk
+                        
+                        # Check if response is complete (ends with prompt)
+                        if b'>:' in response or b'$' in response:
+                            break
+                    time.sleep(0.1)
+                
+                return response.decode('utf-8', errors='ignore').strip()
+            
+            return "OK"
+        
+    except Exception as e:
+        print(f"Error sending command to Flipper: {e}")
+        return None
+
+
+def test_connection():
+    """Test if Flipper is responding"""
+    try:
+        # Send simple command
+        response = send_command("help", wait_response=True, timeout=3)
+        if response and len(response) > 0:
+            print("Flipper Zero is responding")
+            return True
+        return False
+    except:
         return False
 
 
 def open_garage():
     """
-    Open garage door via Sub-GHz signal using PyFlipper
+    Open garage door via Sub-GHz signal
     
-    Requires Sub-GHz app to be open with garage.sub loaded.
-    Uses PyFlipper's input.send() to press and hold OK button for 10 seconds.
+    IMPORTANT: Due to Flipper firmware limitations, you must manually:
+    1. Open Sub-GHz app on Flipper
+    2. Load garage.sub file
+    3. Keep it on the transmit screen
+    
+    This function will then send the OK button press to trigger transmission.
+    
+    Note: Automatic app opening via CLI is not supported in current firmware.
     """
     global last_command_time, flipper_config
     
@@ -106,11 +195,11 @@ def open_garage():
     
     try:
         print("🚗 Opening garage door...")
-        print("⚠ Make sure Sub-GHz app is open with garage.sub loaded!")
+        print("⚠ IMPORTANT: Make sure Sub-GHz app is open with garage.sub loaded!")
         
-        # Press OK button
+        # Send OK button press to trigger transmission
         print("Pressing OK button...")
-        flipper.input.send("ok", "press")
+        send_command("input send ok press", wait_response=False, timeout=1)
         
         # Hold for 10 seconds (transmission duration)
         print("Transmitting signal... (10 seconds)")
@@ -118,11 +207,12 @@ def open_garage():
         
         # Release OK button
         print("Releasing OK button...")
-        flipper.input.send("ok", "release")
+        send_command("input send ok release", wait_response=False, timeout=1)
         
         time.sleep(1)
         
         print("✓ Garage door command sent")
+        print("   (If garage didn't open, ensure Sub-GHz app was open with garage.sub loaded)")
         last_command_time = time.time()
         return True
         
@@ -162,7 +252,7 @@ def get_status():
     
     return {
         'enabled': flipper_enabled,
-        'connected': flipper is not None,
+        'connected': flipper is not None and flipper.is_open if flipper else False,
         'port': flipper_config.get('flipper_port', '/dev/ttyACM0'),
         'auto_open': flipper_config.get('auto_open', True),
         'cooldown_seconds': cooldown,
@@ -176,7 +266,7 @@ def cleanup():
     
     if flipper:
         try:
-            # PyFlipper doesn't need explicit cleanup
+            flipper.close()
             flipper_enabled = False
             print("Flipper Zero disconnected")
         except Exception as e:
@@ -185,9 +275,14 @@ def cleanup():
 
 if __name__ == "__main__":
     # Test Flipper Zero functionality
-    print("Testing Flipper Zero controller with PyFlipper...")
-    print("\n⚠ NOTE: This will transmit /ext/subghz/garage.sub!")
-    print("Make sure your garage signal is saved on Flipper at that location.")
+    print("Testing Flipper Zero controller...")
+    print("\n⚠ NOTE: This will attempt to send garage door signal!")
+    print("\nMake sure your garage signal is saved on Flipper at:")
+    print("  /ext/subghz/garage.sub")
+    print("\nTo save your garage signal:")
+    print("  1. Go to Sub-GHz app on Flipper")
+    print("  2. Read your garage remote signal")
+    print("  3. Save it as 'garage' (will be saved to /ext/subghz/garage.sub)")
     
     response = input("\nContinue with test? (yes/no): ")
     if response.lower() != 'yes':
@@ -198,8 +293,15 @@ if __name__ == "__main__":
         print("\n✓ Flipper Zero initialized successfully")
         print(f"Status: {get_status()}")
         
+        # Test connection
+        print("\nTesting communication...")
+        response = send_command("device_info")
+        if response:
+            print(f"Response: {response[:100]}...")  # First 100 chars
+        
         # Test garage command (with confirmation)
         print("\n⚠ WARNING: About to send garage door signal!")
+        print("This will load and transmit /ext/subghz/garage.sub")
         confirm = input("Send garage command? (yes/no): ")
         
         if confirm.lower() == 'yes':
@@ -212,9 +314,9 @@ if __name__ == "__main__":
     else:
         print("\n✗ Flipper Zero initialization failed")
         print("\nTroubleshooting:")
-        print("  1. Install PyFlipper: pip install pyflipper")
-        print("  2. Check Flipper is connected via USB")
-        print("  3. Check correct port (ls /dev/ttyACM*)")
+        print("  1. Check Flipper is connected via USB")
+        print("  2. Check correct port (ls /dev/ttyACM*)")
+        print("  3. Check user has permission (add to dialout group)")
         print("  4. Ensure Flipper is not connected to qFlipper")
         print("  5. Make sure garage.sub exists at /ext/subghz/garage.sub")
 
