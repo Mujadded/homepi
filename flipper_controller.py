@@ -196,14 +196,18 @@ def open_garage():
         print("Triggering transmission (holding OK button for 10 seconds)...")
         
         # Press OK button down (correct syntax: input send ok press)
-        send_command("input send ok press", wait_response=False, timeout=1)
+        print("Sending: input send ok press")
+        response = send_command("input send ok press", wait_response=True, timeout=2)
+        print(f"Response: {response}")
         
         # Hold for 10 seconds (while transmitting)
-        print("Transmitting signal...")
+        print("Transmitting signal... (waiting 10 seconds)")
         time.sleep(10)
         
         # Release OK button (correct syntax: input send ok release)
-        send_command("input send ok release", wait_response=False, timeout=1)
+        print("Sending: input send ok release")
+        response = send_command("input send ok release", wait_response=True, timeout=2)
+        print(f"Response: {response}")
         
         # Wait a moment for cleanup
         time.sleep(1)
