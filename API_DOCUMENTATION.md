@@ -23,6 +23,8 @@ Replace with your Raspberry Pi's IP address.
 
 - [Music Scheduler API](#music-scheduler-api)
 - [Security System API](#security-system-api)
+- [Raspberry Pi I/O APIs (Jetson Integration)](#raspberry-pi-io-apis-jetson-integration)
+  - [Patrol Mode APIs](#patrol-mode-apis)
 - [System Health API](#system-health-api)
 - [Sensor API](#sensor-api)
 - [WebSocket Events](#websocket-events)
@@ -690,7 +692,7 @@ POST /api/pantilt/command
 Content-Type: application/json
 ```
 
-**Description:** Control Pan-Tilt HAT from Jetson for object tracking.
+**Description:** Control Pan-Tilt HAT from Jetson for object tracking. Automatically interrupts patrol mode if active.
 
 **Request Body (Relative Movement):**
 ```json
@@ -725,6 +727,8 @@ Content-Type: application/json
 - `pan`: Horizontal adjustment in degrees (positive = right)
 - `tilt`: Vertical adjustment in degrees (positive = down)
 - `speed`: Movement speed (1-10, higher = faster)
+
+**Note:** Commands automatically interrupt patrol mode and resume after 5 seconds.
 
 ### Send Telegram Notification
 
@@ -780,6 +784,197 @@ Content-Type: application/json
 
 **Actions Supported:**
 - `garage_open`: Send garage door open signal
+
+### Patrol Mode APIs
+
+**Description:** Control automated Pan-Tilt patrol patterns with customizable positions and timing.
+
+#### Start Patrol
+
+```http
+POST /api/pantilt/patrol/start
+Content-Type: application/json
+```
+
+**Request Body:**
+```json
+{
+  "speed": 7
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Patrol started",
+  "status": {
+    "active": true,
+    "interrupted": false,
+    "position_count": 4,
+    "current_index": 0,
+    "speed": 7,
+    "resume_delay": 5,
+    "direction": "forward"
+  }
+}
+```
+
+**Parameters:**
+- `speed`: Movement speed between positions (1-10, higher = faster)
+
+#### Stop Patrol
+
+```http
+POST /api/pantilt/patrol/stop
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Patrol stopped"
+}
+```
+
+#### Get Patrol Status
+
+```http
+GET /api/pantilt/patrol/status
+```
+
+**Response:**
+```json
+{
+  "active": true,
+  "interrupted": false,
+  "position_count": 4,
+  "current_index": 2,
+  "speed": 5,
+  "resume_delay": 5,
+  "direction": "backward"
+}
+```
+
+**Status Fields:**
+- `active`: Whether patrol is currently running
+- `interrupted`: Whether patrol is temporarily paused (auto-resumes)
+- `position_count`: Number of saved patrol positions
+- `current_index`: Current position in patrol sequence (null if inactive)
+- `speed`: Current movement speed (1-10)
+- `resume_delay`: Seconds to wait before resuming after interrupt
+- `direction`: Current patrol direction ("forward" or "backward")
+
+#### Get Patrol Positions
+
+```http
+GET /api/pantilt/patrol/positions
+```
+
+**Response:**
+```json
+{
+  "positions": [
+    {
+      "id": 1,
+      "pan": -45,
+      "tilt": 0,
+      "dwell_time": 10,
+      "created_at": "2025-10-14T15:30:00"
+    },
+    {
+      "id": 2,
+      "pan": 0,
+      "tilt": -20,
+      "dwell_time": 5,
+      "created_at": "2025-10-14T15:31:00"
+    },
+    {
+      "id": 3,
+      "pan": 45,
+      "tilt": 0,
+      "dwell_time": 8,
+      "created_at": "2025-10-14T15:32:00"
+    }
+  ]
+}
+```
+
+#### Add Patrol Position
+
+```http
+POST /api/pantilt/patrol/positions/add
+Content-Type: application/json
+```
+
+**Description:** Save current Pan-Tilt position as a patrol waypoint.
+
+**Request Body:**
+```json
+{
+  "dwell_time": 15
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "position": {
+    "id": 4,
+    "pan": 30,
+    "tilt": -10,
+    "dwell_time": 15,
+    "created_at": "2025-10-14T15:35:00"
+  }
+}
+```
+
+**Parameters:**
+- `dwell_time`: How long to stay at this position in seconds (5-60)
+
+#### Update Patrol Position
+
+```http
+PUT /api/pantilt/patrol/positions/{position_id}
+Content-Type: application/json
+```
+
+**Request Body:**
+```json
+{
+  "dwell_time": 20
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Position 4 updated"
+}
+```
+
+#### Delete Patrol Position
+
+```http
+DELETE /api/pantilt/patrol/positions/{position_id}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Position 4 deleted"
+}
+```
+
+**Patrol Behavior:**
+- **Pattern**: Back-and-forth movement (1→2→3→2→1→2→3...)
+- **Interrupts**: Manual controls and Jetson commands pause patrol
+- **Auto-Resume**: Patrol resumes automatically after 5 seconds
+- **Position Recording**: Use Pan-Tilt controls to move camera, then save position
+- **Customizable**: Each position has individual dwell time (5-60 seconds)
 
 ---
 
@@ -924,6 +1119,24 @@ requests.post(f"{BASE_URL}/api/security/pantilt/move", json={
     "tilt": -10,
     "speed": 5
 })
+
+# Patrol mode example
+# Save current position for patrol
+requests.post(f"{BASE_URL}/api/pantilt/patrol/positions/add", json={
+    "dwell_time": 10
+})
+
+# Start patrol at speed 7
+requests.post(f"{BASE_URL}/api/pantilt/patrol/start", json={
+    "speed": 7
+})
+
+# Check patrol status
+patrol_status = requests.get(f"{BASE_URL}/api/pantilt/patrol/status").json()
+print(f"Patrol active: {patrol_status['active']}, Positions: {patrol_status['position_count']}")
+
+# Stop patrol
+requests.post(f"{BASE_URL}/api/pantilt/patrol/stop")
 ```
 
 ### JavaScript (Browser)
@@ -1017,6 +1230,26 @@ curl -X POST http://192.168.0.26:5000/api/security/training/upload \
   -F "image=@/path/to/car.jpg" \
   -F "label=my_car" \
   -F "category=car"
+
+# Patrol mode examples
+# Save current position for patrol
+curl -X POST http://192.168.0.26:5000/api/pantilt/patrol/positions/add \
+  -H "Content-Type: application/json" \
+  -d '{"dwell_time": 15}'
+
+# Start patrol
+curl -X POST http://192.168.0.26:5000/api/pantilt/patrol/start \
+  -H "Content-Type: application/json" \
+  -d '{"speed": 7}'
+
+# Get patrol status
+curl http://192.168.0.26:5000/api/pantilt/patrol/status
+
+# Get patrol positions
+curl http://192.168.0.26:5000/api/pantilt/patrol/positions
+
+# Stop patrol
+curl -X POST http://192.168.0.26:5000/api/pantilt/patrol/stop
 ```
 
 ---
@@ -1148,7 +1381,13 @@ CREATE TABLE known_cars (
       "tilt_limits": [-45, 45],
       "home_position": [0, 0],
       "tracking_enabled": true,
-      "tracking_speed": 5
+      "tracking_speed": 5,
+      "patrol": {
+        "default_speed": 5,
+        "default_dwell_time": 10,
+        "resume_delay": 5,
+        "max_positions": 20
+      }
     },
     "detection": {
       "remote_url": "http://192.168.0.105:5001",
@@ -1239,7 +1478,14 @@ MIT License - See LICENSE file for details
 
 ## Version
 
-**Current Version:** 2.0.0  
-**Last Updated:** October 12, 2025  
+**Current Version:** 2.1.0  
+**Last Updated:** October 14, 2025  
 **API Version:** v1
+
+**Latest Changes (v2.1.0):**
+- ✅ Added Patrol Mode APIs for automated Pan-Tilt camera movement
+- ✅ Customizable patrol positions with individual dwell times
+- ✅ Back-and-forth patrol pattern with interrupt/resume capability
+- ✅ Integration with Jetson commands for seamless tracking
+- ✅ Removed training section from web UI (moved to Jetson)
 
