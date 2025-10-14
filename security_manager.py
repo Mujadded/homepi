@@ -131,6 +131,14 @@ def init_security_io_mode():
     if not pantilt_controller.init_pantilt():
         logger.warning("Pan-Tilt HAT not available")
     
+    # Initialize Patrol system
+    try:
+        import pantilt_patrol
+        pantilt_patrol.init_patrol()
+        logger.info("✓ Patrol system initialized")
+    except Exception as e:
+        logger.warning(f"Patrol system initialization failed: {e}")
+    
     # Initialize Flipper Zero (for automation actions)
     flipper_port = security_config.get('automation', {}).get('flipper_port')
     if flipper_port:

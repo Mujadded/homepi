@@ -1012,17 +1012,22 @@ def live_feed():
 
 @app.route('/api/security/pantilt/move', methods=['POST'])
 def move_pantilt():
-    """Manual Pan-Tilt control (relative movement)"""
+    """Manual Pan-Tilt control (relative movement) - interrupts patrol if active"""
     if not SECURITY_AVAILABLE:
         return jsonify({'error': 'Security system not available'}), 503
     
     try:
         import pantilt_controller
+        import pantilt_patrol
         
         data = request.json
         pan_delta = data.get('pan', 0)
         tilt_delta = data.get('tilt', 0)
         speed = data.get('speed', 5)
+        
+        # Interrupt patrol if active
+        if pantilt_patrol.is_active():
+            pantilt_patrol.interrupt_patrol()
         
         # Get current position
         current = pantilt_controller.get_position()
@@ -1059,6 +1064,171 @@ def pantilt_home():
             'success': True,
             'position': position
         })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+# ==================== Patrol Mode APIs ====================
+
+@app.route('/api/pantilt/patrol/start', methods=['POST'])
+def start_patrol():
+    """Start patrol mode with specified speed"""
+    if not SECURITY_AVAILABLE:
+        return jsonify({'error': 'Security system not available'}), 503
+    
+    try:
+        import pantilt_patrol
+        
+        data = request.json or {}
+        speed = data.get('speed', 5)
+        
+        if pantilt_patrol.start_patrol(speed):
+            return jsonify({
+                'success': True,
+                'message': 'Patrol started',
+                'status': pantilt_patrol.get_status()
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'message': 'Failed to start patrol'
+            }), 400
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/pantilt/patrol/stop', methods=['POST'])
+def stop_patrol():
+    """Stop patrol mode"""
+    if not SECURITY_AVAILABLE:
+        return jsonify({'error': 'Security system not available'}), 503
+    
+    try:
+        import pantilt_patrol
+        
+        if pantilt_patrol.stop_patrol():
+            return jsonify({
+                'success': True,
+                'message': 'Patrol stopped'
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'message': 'Patrol not active'
+            }), 400
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/pantilt/patrol/status', methods=['GET'])
+def get_patrol_status():
+    """Get patrol status"""
+    if not SECURITY_AVAILABLE:
+        return jsonify({'error': 'Security system not available'}), 503
+    
+    try:
+        import pantilt_patrol
+        
+        return jsonify(pantilt_patrol.get_status())
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/pantilt/patrol/positions', methods=['GET'])
+def get_patrol_positions():
+    """Get all patrol positions"""
+    if not SECURITY_AVAILABLE:
+        return jsonify({'error': 'Security system not available'}), 503
+    
+    try:
+        import pantilt_patrol
+        
+        return jsonify({
+            'positions': pantilt_patrol.get_positions()
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/pantilt/patrol/positions/add', methods=['POST'])
+def add_patrol_position():
+    """Save current position as patrol waypoint"""
+    if not SECURITY_AVAILABLE:
+        return jsonify({'error': 'Security system not available'}), 503
+    
+    try:
+        import pantilt_controller
+        import pantilt_patrol
+        
+        data = request.json or {}
+        dwell_time = data.get('dwell_time', 10)
+        
+        # Get current pan-tilt position
+        current = pantilt_controller.get_position()
+        
+        # Add position to patrol
+        position = pantilt_patrol.add_position(
+            current['pan'],
+            current['tilt'],
+            dwell_time
+        )
+        
+        return jsonify({
+            'success': True,
+            'position': position
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/pantilt/patrol/positions/<int:position_id>', methods=['DELETE'])
+def delete_patrol_position(position_id):
+    """Delete a patrol position"""
+    if not SECURITY_AVAILABLE:
+        return jsonify({'error': 'Security system not available'}), 503
+    
+    try:
+        import pantilt_patrol
+        
+        if pantilt_patrol.delete_position(position_id):
+            return jsonify({
+                'success': True,
+                'message': f'Position {position_id} deleted'
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'message': 'Position not found'
+            }), 404
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/pantilt/patrol/positions/<int:position_id>', methods=['PUT'])
+def update_patrol_position(position_id):
+    """Update patrol position dwell time"""
+    if not SECURITY_AVAILABLE:
+        return jsonify({'error': 'Security system not available'}), 503
+    
+    try:
+        import pantilt_patrol
+        
+        data = request.json or {}
+        dwell_time = data.get('dwell_time')
+        
+        if dwell_time is None:
+            return jsonify({'error': 'dwell_time required'}), 400
+        
+        if pantilt_patrol.update_position(position_id, dwell_time):
+            return jsonify({
+                'success': True,
+                'message': f'Position {position_id} updated'
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'message': 'Position not found'
+            }), 404
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
@@ -1290,9 +1460,14 @@ def pantilt_command():
     
     try:
         import pantilt_controller
+        import pantilt_patrol
         
         data = request.json
         action = data.get('action')
+        
+        # Interrupt patrol if active (will auto-resume after delay)
+        if pantilt_patrol.is_active():
+            pantilt_patrol.interrupt_patrol()
         
         if action == 'move':
             pan = data.get('pan', 0)

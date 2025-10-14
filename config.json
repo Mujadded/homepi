@@ -34,7 +34,13 @@
             "patrol_enabled": false,
             "tracking_enabled": true,
             "patrol_speed": 2,
-            "tracking_speed": 5
+            "tracking_speed": 5,
+            "patrol": {
+                "default_speed": 5,
+                "default_dwell_time": 10,
+                "resume_delay": 5,
+                "max_positions": 20
+            }
         },
         "detection": {
             "remote_url": "http://192.168.0.105:5001",

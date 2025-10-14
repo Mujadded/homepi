@@ -10,12 +10,14 @@ async function initSecurity() {
     updateSecurityStatus();
     loadRecentDetections();
     loadKnownCars();
-    loadTrainingLabels();
+    loadPatrolPositions();
+    initPatrolControls();
     
     // Update every 5 seconds
     setInterval(() => {
         updateSecurityStatus();
         loadRecentDetections();
+        updatePatrolStatus();
     }, 5000);
 }
 
@@ -350,147 +352,7 @@ async function removeKnownCar(carId) {
     }
 }
 
-// Upload training images
-async function uploadTrainingImages(category) {
-    const inputId = category === 'car' ? 'car-upload-input' : 'person-upload-input';
-    const labelInputId = category === 'car' ? 'car-label-input' : 'person-label-input';
-    
-    const files = document.getElementById(inputId).files;
-    const label = document.getElementById(labelInputId).value.trim();
-    
-    if (!label) {
-        alert(`Please enter a label for the ${category}`);
-        return;
-    }
-    
-    if (files.length === 0) {
-        alert('Please select images to upload');
-        return;
-    }
-    
-    for (let file of files) {
-        const formData = new FormData();
-        formData.append('image', file);
-        formData.append('label', label);
-        formData.append('category', category);
-        
-        try {
-            const response = await fetch('/api/security/training/upload', {
-                method: 'POST',
-                body: formData
-            });
-            
-            const result = await response.json();
-            
-            if (!result.success) {
-                console.error('Upload failed:', result.error);
-            }
-        } catch (error) {
-            console.error('Error uploading image:', error);
-        }
-    }
-    
-    // Reload training labels
-    await loadTrainingLabels();
-    
-    // Clear file input
-    document.getElementById(inputId).value = '';
-    
-    alert(`Uploaded ${files.length} images for ${label}`);
-}
 
-// Load training labels and counts
-async function loadTrainingLabels() {
-    try {
-        const labels = await fetch('/api/security/training/labels').then(r => r.json());
-        
-        // Update car labels
-        const carContainer = document.getElementById('car-training-labels');
-        const carLabels = Object.entries(labels.cars || {});
-        
-        if (carLabels.length === 0) {
-            carContainer.innerHTML = '<p style="color: var(--gray-600); padding: 12px 0;">No car training data yet</p>';
-        } else {
-            carContainer.innerHTML = carLabels.map(([label, data]) => `
-                <div class="training-label-card">
-                    <strong>${label}</strong>
-                    <div style="font-size: 0.9em; color: var(--gray-600); margin-top: 4px;">
-                        ${data.count} images
-                        ${data.ready ? '<span style="color: var(--success);">✓ Ready</span>' : '<span style="color: var(--warning);">Need more</span>'}
-                    </div>
-                    <div class="training-progress">
-                        <div class="training-progress-bar" style="width: ${Math.min(100, (data.count / 50) * 100)}%"></div>
-                    </div>
-                </div>
-            `).join('');
-        }
-        
-        // Update person labels
-        const personContainer = document.getElementById('person-training-labels');
-        const personLabels = Object.entries(labels.persons || {});
-        
-        if (personLabels.length === 0) {
-            personContainer.innerHTML = '<p style="color: var(--gray-600); padding: 12px 0;">No person training data yet</p>';
-        } else {
-            personContainer.innerHTML = personLabels.map(([label, data]) => `
-                <div class="training-label-card">
-                    <strong>${label}</strong>
-                    <div style="font-size: 0.9em; color: var(--gray-600); margin-top: 4px;">
-                        ${data.count} images
-                        ${data.ready ? '<span style="color: var(--success);">✓ Ready</span>' : '<span style="color: var(--warning);">Need more</span>'}
-                    </div>
-                    <div class="training-progress">
-                        <div class="training-progress-bar" style="width: ${Math.min(100, (data.count / 50) * 100)}%"></div>
-                    </div>
-                </div>
-            `).join('');
-        }
-        
-    } catch (error) {
-        console.error('Error loading training labels:', error);
-    }
-}
-
-// Start training
-async function startTraining() {
-    if (!confirm('Start training? This may take several minutes.')) return;
-    
-    alert('Training on Raspberry Pi is not yet implemented.\n\nFor best results:\n1. Download training images from training_data/ folder\n2. Train on laptop with GPU (see TRAINING_GUIDE.md)\n3. Upload trained model back to Pi\n\nComing soon: On-device training support!');
-}
-
-// Drag and drop support
-['car-uploader', 'person-uploader'].forEach(id => {
-    const uploader = document.getElementById(id);
-    
-    ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
-        uploader.addEventListener(eventName, preventDefaults, false);
-    });
-    
-    function preventDefaults(e) {
-        e.preventDefault();
-        e.stopPropagation();
-    }
-    
-    ['dragenter', 'dragover'].forEach(eventName => {
-        uploader.addEventListener(eventName, () => uploader.classList.add('dragover'), false);
-    });
-    
-    ['dragleave', 'drop'].forEach(eventName => {
-        uploader.addEventListener(eventName, () => uploader.classList.remove('dragover'), false);
-    });
-    
-    uploader.addEventListener('drop', handleDrop, false);
-    
-    function handleDrop(e) {
-        const dt = e.dataTransfer;
-        const files = dt.files;
-        const category = id === 'car-uploader' ? 'car' : 'person';
-        const inputId = category === 'car' ? 'car-upload-input' : 'person-upload-input';
-        
-        document.getElementById(inputId).files = files;
-        uploadTrainingImages(category);
-    }
-});
 
 // Garage door control
 async function openGarage() {
@@ -513,6 +375,249 @@ async function openGarage() {
             alert('✗ Failed to send garage command: ' + (result.error || 'Unknown error'));
         }
     } catch (error) {
+        alert('✗ Error: ' + error.message);
+    }
+}
+
+
+// ==================== Patrol Mode Functions ====================
+
+// Initialize patrol controls
+function initPatrolControls() {
+    // Speed slider update
+    const speedSlider = document.getElementById('patrol-speed');
+    const speedValue = document.getElementById('patrol-speed-value');
+    
+    if (speedSlider && speedValue) {
+        speedSlider.addEventListener('input', function() {
+            speedValue.textContent = this.value;
+        });
+    }
+}
+
+// Update patrol status display
+async function updatePatrolStatus() {
+    try {
+        const response = await fetch('/api/pantilt/patrol/status');
+        const status = await response.json();
+        
+        if (status.error) {
+            console.error('Patrol status error:', status.error);
+            return;
+        }
+        
+        // Update status badge
+        const statusElement = document.getElementById('patrol-status');
+        const startBtn = document.getElementById('patrol-start-btn');
+        const stopBtn = document.getElementById('patrol-stop-btn');
+        
+        if (status.active) {
+            statusElement.textContent = status.interrupted ? 'Interrupted' : 'Active';
+            statusElement.className = 'badge ' + (status.interrupted ? 'badge-person' : 'badge-car');
+            startBtn.disabled = true;
+            stopBtn.disabled = false;
+        } else {
+            statusElement.textContent = 'Inactive';
+            statusElement.className = 'badge badge-unknown';
+            startBtn.disabled = false;
+            stopBtn.disabled = true;
+        }
+        
+        // Update position count
+        document.getElementById('patrol-position-count').textContent = status.position_count || 0;
+        
+    } catch (error) {
+        console.error('Error updating patrol status:', error);
+    }
+}
+
+// Load and display patrol positions
+async function loadPatrolPositions() {
+    try {
+        const response = await fetch('/api/pantilt/patrol/positions');
+        const data = await response.json();
+        
+        if (data.error) {
+            console.error('Error loading patrol positions:', data.error);
+            return;
+        }
+        
+        const positionsList = document.getElementById('patrol-positions-list');
+        
+        if (!data.positions || data.positions.length === 0) {
+            positionsList.innerHTML = `
+                <p style="color: var(--gray-600); text-align: center; padding: 20px; font-size: 0.9em;">
+                    No positions saved. Use Pan-Tilt controls to move camera, then click "Save Position".
+                </p>
+            `;
+            return;
+        }
+        
+        // Build positions list
+        let html = '';
+        data.positions.forEach((pos, index) => {
+            html += `
+                <div style="background: white; padding: 12px; border-radius: 8px; border: 1px solid var(--gray-200); margin-bottom: 8px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <div>
+                            <strong>Position ${pos.id}</strong>
+                            <div style="font-size: 0.9em; color: var(--gray-600);">
+                                Pan: ${pos.pan}°, Tilt: ${pos.tilt}°, Dwell: ${pos.dwell_time}s
+                            </div>
+                        </div>
+                        <div style="display: flex; gap: 8px;">
+                            <button class="btn btn-secondary" onclick="editPatrolPosition(${pos.id}, ${pos.dwell_time})" style="padding: 4px 8px; font-size: 0.8em;">
+                                ✏ Edit
+                            </button>
+                            <button class="btn btn-danger" onclick="deletePatrolPosition(${pos.id})" style="padding: 4px 8px; font-size: 0.8em;">
+                                🗑 Delete
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+        });
+        
+        positionsList.innerHTML = html;
+        
+    } catch (error) {
+        console.error('Error loading patrol positions:', error);
+    }
+}
+
+// Save current position as patrol waypoint
+async function savePatrolPosition() {
+    try {
+        const dwellTime = parseInt(document.getElementById('patrol-dwell-time').value) || 10;
+        
+        if (dwellTime < 5 || dwellTime > 60) {
+            alert('Dwell time must be between 5 and 60 seconds');
+            return;
+        }
+        
+        const response = await fetch('/api/pantilt/patrol/positions/add', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ dwell_time: dwellTime })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            await loadPatrolPositions();
+            await updatePatrolStatus();
+            
+            // Show success message
+            const pos = result.position;
+            alert(`✓ Position saved!\nPan: ${pos.pan}°, Tilt: ${pos.tilt}°, Dwell: ${pos.dwell_time}s`);
+        } else {
+            alert('✗ Failed to save position: ' + (result.error || 'Unknown error'));
+        }
+    } catch (error) {
+        console.error('Error saving patrol position:', error);
+        alert('✗ Error: ' + error.message);
+    }
+}
+
+// Delete a patrol position
+async function deletePatrolPosition(positionId) {
+    if (!confirm(`Delete position ${positionId}?`)) {
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/api/pantilt/patrol/positions/${positionId}`, {
+            method: 'DELETE'
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            await loadPatrolPositions();
+            await updatePatrolStatus();
+        } else {
+            alert('✗ Failed to delete position: ' + (result.message || 'Unknown error'));
+        }
+    } catch (error) {
+        console.error('Error deleting patrol position:', error);
+        alert('✗ Error: ' + error.message);
+    }
+}
+
+// Edit patrol position dwell time
+async function editPatrolPosition(positionId, currentDwellTime) {
+    const newDwellTime = prompt(`Edit dwell time for position ${positionId}:`, currentDwellTime);
+    
+    if (newDwellTime === null) return; // Cancelled
+    
+    const dwellTime = parseInt(newDwellTime);
+    if (isNaN(dwellTime) || dwellTime < 5 || dwellTime > 60) {
+        alert('Dwell time must be a number between 5 and 60 seconds');
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/api/pantilt/patrol/positions/${positionId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ dwell_time: dwellTime })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            await loadPatrolPositions();
+        } else {
+            alert('✗ Failed to update position: ' + (result.message || 'Unknown error'));
+        }
+    } catch (error) {
+        console.error('Error updating patrol position:', error);
+        alert('✗ Error: ' + error.message);
+    }
+}
+
+// Start patrol mode
+async function startPatrol() {
+    try {
+        const speed = parseInt(document.getElementById('patrol-speed').value) || 5;
+        
+        const response = await fetch('/api/pantilt/patrol/start', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ speed: speed })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            await updatePatrolStatus();
+            alert(`✓ Patrol started at speed ${speed}!`);
+        } else {
+            alert('✗ Failed to start patrol: ' + (result.message || 'Unknown error'));
+        }
+    } catch (error) {
+        console.error('Error starting patrol:', error);
+        alert('✗ Error: ' + error.message);
+    }
+}
+
+// Stop patrol mode
+async function stopPatrol() {
+    try {
+        const response = await fetch('/api/pantilt/patrol/stop', {
+            method: 'POST'
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            await updatePatrolStatus();
+            alert('✓ Patrol stopped!');
+        } else {
+            alert('✗ Failed to stop patrol: ' + (result.message || 'Unknown error'));
+        }
+    } catch (error) {
+        console.error('Error stopping patrol:', error);
         alert('✗ Error: ' + error.message);
     }
 }
