@@ -2,11 +2,17 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="HomePi Security">
+    <meta name="theme-color" content="#ef4444">
     <title>HomePi - AI Security System</title>
+    
+    <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
     <style>
         :root {
             --primary: #6366f1;
@@ -41,8 +47,11 @@
             background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%);
             background-attachment: fixed;
             min-height: 100vh;
-            padding: 20px;
+            padding: env(safe-area-inset-top) 20px env(safe-area-inset-bottom) 20px;
             color: var(--dark);
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+            -webkit-tap-highlight-color: transparent;
         }
 
         .container {
@@ -75,15 +84,21 @@
         }
 
         .btn {
-            padding: 12px 24px;
+            padding: 16px 32px;
             border: none;
-            border-radius: 8px;
-            font-size: 1em;
-            font-weight: 600;
+            border-radius: 16px;
+            font-size: 1.1em;
+            font-weight: 700;
             cursor: pointer;
-            transition: all 0.3s;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
             text-decoration: none;
-            display: inline-block;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            min-height: 56px;
+            box-shadow: var(--shadow-md);
+            -webkit-tap-highlight-color: transparent;
         }
 
         .btn-primary {
@@ -156,12 +171,49 @@
             position: relative;
             width: 100%;
             background: #000;
-            border-radius: 12px;
+            border-radius: 16px;
             overflow: hidden;
             min-height: 300px;
             display: flex;
             align-items: center;
             justify-content: center;
+            transition: all 0.3s ease;
+        }
+
+        .live-feed-container.fullscreen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: 9999;
+            border-radius: 0;
+            background: #000;
+        }
+
+        .fullscreen-btn {
+            position: absolute;
+            top: 12px;
+            right: 12px;
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            padding: 8px 12px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.3s;
+            z-index: 10;
+            backdrop-filter: blur(10px);
+        }
+
+        .fullscreen-btn:hover {
+            background: rgba(0, 0, 0, 0.9);
+        }
+
+        .live-feed-container.fullscreen .fullscreen-btn {
+            top: env(safe-area-inset-top, 12px);
+            right: env(safe-area-inset-right, 12px);
         }
 
         .live-feed-container img {
@@ -179,14 +231,20 @@
         }
 
         .pantilt-btn {
-            padding: 12px;
-            background: var(--primary);
+            padding: 20px;
+            background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
             color: white;
             border: none;
-            border-radius: 8px;
+            border-radius: 16px;
             cursor: pointer;
-            font-size: 20px;
-            transition: all 0.2s;
+            font-size: 28px;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: var(--shadow-md);
+            min-height: 70px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            -webkit-tap-highlight-color: transparent;
         }
 
         .pantilt-btn:hover {
@@ -303,7 +361,26 @@
             }
         }
 
+        /* Touch-friendly improvements */
+        @media (hover: none) and (pointer: coarse) {
+            .btn, .pantilt-btn {
+                min-height: 56px;
+            }
+            
+            .pantilt-btn {
+                min-height: 70px;
+            }
+            
+            input[type="text"], input[type="number"], select {
+                font-size: 16px; /* Prevents zoom on iOS */
+            }
+        }
+
         @media (max-width: 768px) {
+            body {
+                padding: env(safe-area-inset-top) 12px env(safe-area-inset-bottom) 12px;
+            }
+            
             .security-grid {
                 grid-template-columns: 1fr;
             }
@@ -316,6 +393,18 @@
             .nav-links {
                 width: 100%;
                 justify-content: center;
+            }
+            
+            .pantilt-btn {
+                font-size: 24px;
+                min-height: 60px;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .pantilt-btn {
+                font-size: 20px;
+                min-height: 55px;
             }
         }
     </style>
@@ -338,7 +427,8 @@
                 <!-- Live Camera Feed -->
                 <div>
                     <h3 style="margin-bottom: 12px;">📹 Live Feed</h3>
-                    <div class="live-feed-container">
+                    <div class="live-feed-container" id="liveFeedContainer">
+                        <button class="fullscreen-btn" onclick="toggleFullscreen()" id="fullscreenBtn">⛶ Fullscreen</button>
                         <canvas id="live-feed-canvas" style="width: 100%; height: auto; display: block;"></canvas>
                         <img id="live-feed" src="" alt="Live Camera Feed" style="display: none;">
                         <div id="feed-error" style="display: none; text-align: center; padding: 40px; color: var(--gray-600);">
@@ -538,6 +628,32 @@
     </div>
 
     <script>
+        // Fullscreen toggle function
+        function toggleFullscreen() {
+            const container = document.getElementById('liveFeedContainer');
+            const btn = document.getElementById('fullscreenBtn');
+            
+            if (container.classList.contains('fullscreen')) {
+                container.classList.remove('fullscreen');
+                btn.textContent = '⛶ Fullscreen';
+                document.body.style.overflow = '';
+            } else {
+                container.classList.add('fullscreen');
+                btn.textContent = '✕ Exit';
+                document.body.style.overflow = 'hidden';
+            }
+        }
+
+        // Exit fullscreen on escape key
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                const container = document.getElementById('liveFeedContainer');
+                if (container.classList.contains('fullscreen')) {
+                    toggleFullscreen();
+                }
+            }
+        });
+
         // Force reload security.js with cache busting
         const script = document.createElement('script');
         script.src = '/security.js?v=' + Date.now();
