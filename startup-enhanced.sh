@@ -46,12 +46,32 @@ check_root() {
 install_dependencies() {
     log "Installing watchdog dependencies..."
     
-    # Install Python packages
-    pip3 install --upgrade psutil requests
-    
-    # Install system utilities if not present
+    # Update package list
     apt-get update -qq
+    
+    # Install system utilities
     apt-get install -y -qq curl wget htop iotop nethogs
+    
+    # Install Python packages via apt (preferred)
+    if ! apt list --installed | grep -q "python3-psutil"; then
+        log "Installing psutil via apt..."
+        apt-get install -y python3-psutil || {
+            log_warning "psutil not available via apt, trying pip..."
+            pip3 install --break-system-packages psutil
+        }
+    else
+        log "psutil already installed"
+    fi
+    
+    if ! apt list --installed | grep -q "python3-requests"; then
+        log "Installing requests via apt..."
+        apt-get install -y python3-requests || {
+            log_warning "requests not available via apt, trying pip..."
+            pip3 install --break-system-packages requests
+        }
+    else
+        log "requests already installed"
+    fi
     
     log_success "Dependencies installed"
 }

@@ -31,7 +31,27 @@ chmod +x "$HOMEPI_DIR/homepi_watchdog.py"
 
 # Install Python dependencies
 echo "Installing Python dependencies..."
-pip3 install --upgrade psutil requests
+
+# Try to install via apt first (preferred for system packages)
+if apt list --installed | grep -q "python3-psutil"; then
+    echo "psutil already installed via apt"
+else
+    echo "Installing psutil via apt..."
+    apt-get install -y python3-psutil || {
+        echo "psutil not available via apt, trying pip with --break-system-packages..."
+        pip3 install --break-system-packages psutil
+    }
+fi
+
+if apt list --installed | grep -q "python3-requests"; then
+    echo "requests already installed via apt"
+else
+    echo "Installing requests via apt..."
+    apt-get install -y python3-requests || {
+        echo "requests not available via apt, trying pip with --break-system-packages..."
+        pip3 install --break-system-packages requests
+    }
+fi
 
 # Install systemd service
 echo "Installing systemd service..."
