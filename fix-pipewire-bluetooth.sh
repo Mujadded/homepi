@@ -9,23 +9,6 @@ echo ""
 
 SPEAKER_MAC="41:42:9F:04:78:F1"
 
-echo "Step 1: Installing required packages..."
-sudo apt-get update
-sudo apt-get install -y bluez bluez-tools pipewire pipewire-pulse wireplumber libspa-0.2-bluetooth
-
-echo ""
-echo "Step 2: Enabling Bluetooth A2DP in WirePlumber..."
-
-# Create WirePlumber Bluetooth config
-mkdir -p ~/.config/wireplumber/main.lua.d/
-cat > ~/.config/wireplumber/main.lua.d/51-bluez-config.lua << 'EOF'
-bluez_monitor.properties = {
-  ["bluez5.enable-sbc-xq"] = true,
-  ["bluez5.enable-msbc"] = true,
-  ["bluez5.enable-hw-volume"] = true,
-  ["bluez5.headset-roles"] = "[ hsp_hs hsp_ag hfp_hf hfp_ag ]"
-}
-EOF
 
 echo "✅ WirePlumber Bluetooth config created"
 
