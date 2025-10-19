@@ -158,14 +158,14 @@ class HomePiWatchdog:
                     self.logger.warning(f"Bluetooth device {device} is not up")
                     return False
             
-            # Check if Bluetooth audio sink is available
-            success, stdout, stderr = self.run_command("pactl list short sinks | grep bluez")
+            # Check if Bluetooth audio sink is available (run as user)
+            success, stdout, stderr = self.run_command("sudo -u mujadded PULSE_RUNTIME_PATH=/run/user/1000/pulse pactl list short sinks | grep bluez")
             if not success or not stdout.strip():
                 self.logger.warning("No Bluetooth audio sink found")
                 return False
             
             # Check if the sink is actually running (not suspended)
-            success, stdout, stderr = self.run_command("pactl list short sinks | grep bluez | grep RUNNING")
+            success, stdout, stderr = self.run_command("sudo -u mujadded PULSE_RUNTIME_PATH=/run/user/1000/pulse pactl list short sinks | grep bluez | grep RUNNING")
             if not success or not stdout.strip():
                 self.logger.warning("Bluetooth audio sink found but not running")
                 return False
@@ -303,16 +303,16 @@ class HomePiWatchdog:
             
             time.sleep(10)  # Give more time for audio system to initialize
             
-            # Check if Bluetooth sink is now available and running
-            success, stdout, stderr = self.run_command("pactl list short sinks | grep bluez | grep RUNNING")
+            # Check if Bluetooth sink is now available and running (run as user)
+            success, stdout, stderr = self.run_command("sudo -u mujadded PULSE_RUNTIME_PATH=/run/user/1000/pulse pactl list short sinks | grep bluez | grep RUNNING")
             if success and stdout.strip():
                 sink_line = stdout.strip()
                 sink_name = sink_line.split()[1]
                 self.logger.info(f"Bluetooth sink found and running: {sink_name}")
                 
-                # Set as default sink and adjust volume
-                self.run_command(f"pactl set-default-sink {sink_name}")
-                self.run_command(f"pactl set-sink-volume {sink_name} 70%")
+                # Set as default sink and adjust volume (run as user)
+                self.run_command(f"sudo -u mujadded PULSE_RUNTIME_PATH=/run/user/1000/pulse pactl set-default-sink {sink_name}")
+                self.run_command(f"sudo -u mujadded PULSE_RUNTIME_PATH=/run/user/1000/pulse pactl set-sink-volume {sink_name} 70%")
                 
                 if self.check_bluetooth_status():
                     self.logger.info("Bluetooth connectivity restored")
