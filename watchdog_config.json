@@ -23,8 +23,8 @@
     "enable_service_restart": true,
     "enable_network_fix": true,
     "enable_bluetooth_fix": true,
-    "enable_system_reboot": true,
-    "max_reboots_per_hour": 2,
+    "enable_system_reboot": false,
+    "max_reboots_per_hour": 1,
     "fix_delay_seconds": 30
   },
   "network": {

@@ -53,7 +53,7 @@ class HomePiWatchdog:
         log_dir.mkdir(parents=True, exist_ok=True)
         
         logging.basicConfig(
-            level=logging.INFO,
+            level=logging.DEBUG,
             format='%(asctime)s - %(levelname)s - %(message)s',
             handlers=[
                 logging.FileHandler(WATCHDOG_CONFIG['log_file']),
@@ -146,7 +146,9 @@ class HomePiWatchdog:
             return True
             
         try:
+            # Check Bluetooth service
             success, stdout, stderr = self.run_command("systemctl is-active bluetooth")
+            self.logger.debug(f"Bluetooth service check: success={success}, stdout='{stdout.strip()}', stderr='{stderr.strip()}'")
             if not success or stdout.strip() != 'active':
                 self.logger.warning("Bluetooth service is not active")
                 return False
@@ -154,22 +156,32 @@ class HomePiWatchdog:
             # Check if Bluetooth devices are available
             for device in WATCHDOG_CONFIG['bluetooth_devices']:
                 success, stdout, stderr = self.run_command(f"hciconfig {device}")
+                self.logger.debug(f"HCI device {device} check: success={success}, stdout='{stdout.strip()}', stderr='{stderr.strip()}'")
                 if not success or 'UP' not in stdout:
                     self.logger.warning(f"Bluetooth device {device} is not up")
                     return False
             
             # Check if Bluetooth audio sink is available (run as user)
-            success, stdout, stderr = self.run_command("sudo -u mujadded bash -c 'export PULSE_RUNTIME_PATH=/run/user/1000/pulse && pactl list short sinks | grep bluez'")
+            cmd = "sudo -u mujadded bash -c 'export PULSE_RUNTIME_PATH=/run/user/1000/pulse && pactl list short sinks | grep bluez'"
+            success, stdout, stderr = self.run_command(cmd)
+            self.logger.debug(f"Bluetooth sink check command: {cmd}")
+            self.logger.debug(f"Bluetooth sink check: success={success}, stdout='{stdout.strip()}', stderr='{stderr.strip()}'")
+            
             if not success or not stdout.strip():
                 self.logger.warning("No Bluetooth audio sink found")
                 return False
             
             # Check if the sink is actually running (not suspended)
-            success, stdout, stderr = self.run_command("sudo -u mujadded bash -c 'export PULSE_RUNTIME_PATH=/run/user/1000/pulse && pactl list short sinks | grep bluez | grep RUNNING'")
+            cmd = "sudo -u mujadded bash -c 'export PULSE_RUNTIME_PATH=/run/user/1000/pulse && pactl list short sinks | grep bluez | grep RUNNING'"
+            success, stdout, stderr = self.run_command(cmd)
+            self.logger.debug(f"Bluetooth running check command: {cmd}")
+            self.logger.debug(f"Bluetooth running check: success={success}, stdout='{stdout.strip()}', stderr='{stderr.strip()}'")
+            
             if not success or not stdout.strip():
                 self.logger.warning("Bluetooth audio sink found but not running")
                 return False
             
+            self.logger.info("Bluetooth status check passed - sink is running")
             return True
         except Exception as e:
             self.logger.error(f"Error checking Bluetooth status: {e}")
@@ -304,15 +316,27 @@ class HomePiWatchdog:
             time.sleep(10)  # Give more time for audio system to initialize
             
             # Check if Bluetooth sink is now available and running (run as user)
-            success, stdout, stderr = self.run_command("sudo -u mujadded bash -c 'export PULSE_RUNTIME_PATH=/run/user/1000/pulse && pactl list short sinks | grep bluez | grep RUNNING'")
+            cmd = "sudo -u mujadded bash -c 'export PULSE_RUNTIME_PATH=/run/user/1000/pulse && pactl list short sinks | grep bluez | grep RUNNING'"
+            success, stdout, stderr = self.run_command(cmd)
+            self.logger.debug(f"Post-fix Bluetooth sink check command: {cmd}")
+            self.logger.debug(f"Post-fix Bluetooth sink check: success={success}, stdout='{stdout.strip()}', stderr='{stderr.strip()}'")
+            
             if success and stdout.strip():
                 sink_line = stdout.strip()
                 sink_name = sink_line.split()[1]
                 self.logger.info(f"Bluetooth sink found and running: {sink_name}")
                 
                 # Set as default sink and adjust volume (run as user)
-                self.run_command(f"sudo -u mujadded bash -c 'export PULSE_RUNTIME_PATH=/run/user/1000/pulse && pactl set-default-sink {sink_name}'")
-                self.run_command(f"sudo -u mujadded bash -c 'export PULSE_RUNTIME_PATH=/run/user/1000/pulse && pactl set-sink-volume {sink_name} 70%'")
+                set_default_cmd = f"sudo -u mujadded bash -c 'export PULSE_RUNTIME_PATH=/run/user/1000/pulse && pactl set-default-sink {sink_name}'"
+                set_volume_cmd = f"sudo -u mujadded bash -c 'export PULSE_RUNTIME_PATH=/run/user/1000/pulse && pactl set-sink-volume {sink_name} 70%'"
+                
+                self.logger.debug(f"Setting default sink: {set_default_cmd}")
+                success1, stdout1, stderr1 = self.run_command(set_default_cmd)
+                self.logger.debug(f"Set default sink result: success={success1}, stdout='{stdout1.strip()}', stderr='{stderr1.strip()}'")
+                
+                self.logger.debug(f"Setting sink volume: {set_volume_cmd}")
+                success2, stdout2, stderr2 = self.run_command(set_volume_cmd)
+                self.logger.debug(f"Set sink volume result: success={success2}, stdout='{stdout2.strip()}', stderr='{stderr2.strip()}'")
                 
                 if self.check_bluetooth_status():
                     self.logger.info("Bluetooth connectivity restored")
@@ -353,11 +377,23 @@ class HomePiWatchdog:
             with open('/tmp/homepi-watchdog-reboot', 'w') as f:
                 f.write(f"{datetime.now().isoformat()}\n")
             
-            # Schedule reboot in 30 seconds to allow logging
-            self.run_command("shutdown -r +1 'HomePi Watchdog initiated reboot'")
+            # Use systemctl reboot instead of shutdown for more reliable reboot
+            self.logger.critical("Executing systemctl reboot...")
+            self.run_command("systemctl reboot")
+            
+            # If we get here, reboot command failed
+            self.logger.error("systemctl reboot failed, trying alternative methods...")
+            
+            # Try alternative reboot methods
+            self.run_command("reboot")
+            time.sleep(2)
+            
+            # Last resort - force reboot
+            self.run_command("echo 1 > /proc/sys/kernel/sysrq && echo b > /proc/sysrq-trigger")
+            
             return True
         except Exception as e:
-            self.logger.error(f"Error scheduling reboot: {e}")
+            self.logger.error(f"Error executing reboot: {e}")
             return False
     
     def perform_health_check(self):
