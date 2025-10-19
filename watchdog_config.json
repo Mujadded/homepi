@@ -1,0 +1,68 @@
+{
+  "watchdog": {
+    "enabled": true,
+    "check_interval": 30,
+    "max_failures": 3,
+    "log_level": "INFO",
+    "log_file": "/var/log/homepi-watchdog.log",
+    "max_log_size_mb": 10,
+    "max_log_files": 5
+  },
+  "monitoring": {
+    "service_name": "homepi.service",
+    "app_port": 5000,
+    "app_url": "http://localhost:5000",
+    "network_timeout": 10,
+    "test_urls": [
+      "http://192.168.0.26:5000/",
+      "http://google.com",
+      "http://cloudflare.com"
+    ]
+  },
+  "auto_fix": {
+    "enable_service_restart": true,
+    "enable_network_fix": true,
+    "enable_bluetooth_fix": true,
+    "enable_system_reboot": true,
+    "max_reboots_per_hour": 2,
+    "fix_delay_seconds": 30
+  },
+  "network": {
+    "interface": "eth0",
+    "dns_servers": ["8.8.8.8", "1.1.1.1"],
+    "restart_commands": [
+      "systemctl restart networking",
+      "ifdown eth0 && ifup eth0"
+    ]
+  },
+  "bluetooth": {
+    "devices": ["hci0"],
+    "fix_script": "/home/mujadded/homepi/fix-pipewire-bluetooth.sh",
+    "restart_commands": [
+      "systemctl restart bluetooth",
+      "hciconfig hci0 down && hciconfig hci0 up"
+    ],
+    "check_audio_sink": true,
+    "auto_connect_speaker": "41:42:9F:04:78:F1",
+    "post_reboot_fix": true,
+    "fix_timeout": 120
+  },
+  "system": {
+    "max_cpu_percent": 90,
+    "max_memory_percent": 90,
+    "max_disk_percent": 90,
+    "critical_services": [
+      "homepi.service",
+      "bluetooth.service",
+      "networking.service"
+    ]
+  },
+  "notifications": {
+    "enable_telegram": true,
+    "telegram_bot_token": "",
+    "telegram_chat_id": "",
+    "notify_on_reboot": true,
+    "notify_on_service_restart": true,
+    "notify_on_network_fix": true
+  }
+}
