@@ -22,6 +22,7 @@
   "auto_fix": {
     "enable_service_restart": true,
     "enable_network_fix": true,
+    "enable_camera_fix": true,
     "enable_bluetooth_fix": true,
     "enable_system_reboot": false,
     "max_reboots_per_hour": 1,
@@ -34,6 +35,19 @@
       "systemctl restart networking",
       "ifdown eth0 && ifup eth0"
     ]
+  },
+  "camera": {
+    "enable_external_test": true,
+    "test_endpoints": [
+      "/api/security/status",
+      "/api/security/live-feed"
+    ],
+    "fix_methods": [
+      "service_restart",
+      "interface_restart",
+      "firewall_check"
+    ],
+    "test_timeout": 10
   },
   "bluetooth": {
     "devices": ["hci0"],

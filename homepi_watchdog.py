@@ -15,28 +15,91 @@ import psutil
 from datetime import datetime, timedelta
 from pathlib import Path
 
-# Configuration
-WATCHDOG_CONFIG = {
-    'check_interval': 30,  # seconds
-    'max_failures': 3,     # max failures before action
-    'service_name': 'homepi.service',
-    'app_port': 5000,
-    'app_url': 'http://localhost:5000',
-    'log_file': '/var/log/homepi-watchdog.log',
-    'max_log_size': 10 * 1024 * 1024,  # 10MB
-    'max_log_files': 5,
-    'enable_network_fix': True,
-    'enable_bluetooth_fix': True,
-    'enable_service_restart': True,
-    'enable_system_reboot': True,
-    'max_reboots_per_hour': 2,
-    'network_timeout': 10,
-    'bluetooth_devices': ['hci0'],  # Bluetooth devices to check
-    'critical_services': ['homepi.service', 'bluetooth.service'],
-    'network_interface': 'eth0',  # or 'wlan0' for WiFi
-    'dns_servers': ['8.8.8.8', '1.1.1.1'],
-    'test_urls': ['http://192.168.0.26:5000/', 'http://google.com', 'http://cloudflare.com']
-}
+def load_watchdog_config():
+    """Load watchdog configuration from JSON file"""
+    try:
+        with open('/home/mujadded/homepi/watchdog_config.json', 'r') as f:
+            config = json.load(f)
+            
+        # Merge configuration sections
+        merged_config = {}
+        merged_config.update(config.get('watchdog', {}))
+        merged_config.update(config.get('monitoring', {}))
+        merged_config.update(config.get('auto_fix', {}))
+        merged_config.update(config.get('network', {}))
+        merged_config.update(config.get('camera', {}))
+        merged_config.update(config.get('bluetooth', {}))
+        merged_config.update(config.get('system', {}))
+        
+        # Set defaults for missing values
+        defaults = {
+            'check_interval': 30,
+            'max_failures': 3,
+            'service_name': 'homepi.service',
+            'app_port': 5000,
+            'app_url': 'http://localhost:5000',
+            'log_file': '/var/log/homepi-watchdog.log',
+            'max_log_size_mb': 10,
+            'max_log_files': 5,
+            'enable_service_restart': True,
+            'enable_network_fix': True,
+            'enable_camera_fix': True,
+            'enable_bluetooth_fix': True,
+            'enable_system_reboot': False,
+            'max_reboots_per_hour': 1,
+            'network_timeout': 10,
+            'bluetooth_devices': ['hci0'],
+            'critical_services': ['homepi.service', 'bluetooth.service'],
+            'network_interface': 'eth0',
+            'dns_servers': ['8.8.8.8', '1.1.1.1'],
+            'test_urls': ['http://192.168.0.26:5000/', 'http://google.com', 'http://cloudflare.com'],
+            'enable_external_test': True,
+            'test_endpoints': ['/api/security/status', '/api/security/live-feed'],
+            'fix_methods': ['service_restart', 'interface_restart', 'firewall_check'],
+            'test_timeout': 10
+        }
+        
+        for key, default_value in defaults.items():
+            if key not in merged_config:
+                merged_config[key] = default_value
+        
+        # Convert log size to bytes
+        merged_config['max_log_size'] = merged_config.get('max_log_size_mb', 10) * 1024 * 1024
+        
+        return merged_config
+        
+    except Exception as e:
+        print(f"Error loading watchdog config: {e}")
+        # Return default config if file loading fails
+        return {
+            'check_interval': 30,
+            'max_failures': 3,
+            'service_name': 'homepi.service',
+            'app_port': 5000,
+            'app_url': 'http://localhost:5000',
+            'log_file': '/var/log/homepi-watchdog.log',
+            'max_log_size': 10 * 1024 * 1024,
+            'max_log_files': 5,
+            'enable_network_fix': True,
+            'enable_camera_fix': True,
+            'enable_bluetooth_fix': True,
+            'enable_service_restart': True,
+            'enable_system_reboot': False,
+            'max_reboots_per_hour': 1,
+            'network_timeout': 10,
+            'bluetooth_devices': ['hci0'],
+            'critical_services': ['homepi.service', 'bluetooth.service'],
+            'network_interface': 'eth0',
+            'dns_servers': ['8.8.8.8', '1.1.1.1'],
+            'test_urls': ['http://192.168.0.26:5000/', 'http://google.com', 'http://cloudflare.com'],
+            'enable_external_test': True,
+            'test_endpoints': ['/api/security/status', '/api/security/live-feed'],
+            'fix_methods': ['service_restart', 'interface_restart', 'firewall_check'],
+            'test_timeout': 10
+        }
+
+# Load configuration
+WATCHDOG_CONFIG = load_watchdog_config()
 
 class HomePiWatchdog:
     def __init__(self):
@@ -139,6 +202,48 @@ class HomePiWatchdog:
         
         self.logger.warning("Network connectivity check failed")
         return False
+    
+    def check_camera_connectivity(self):
+        """Check camera connectivity from external sources"""
+        if not WATCHDOG_CONFIG.get('enable_external_test', True):
+            return True
+            
+        try:
+            # Get the device's external IP address
+            success, stdout, stderr = self.run_command("hostname -I | awk '{print $1}'")
+            if not success or not stdout.strip():
+                self.logger.warning("Could not determine device IP address")
+                return False
+            
+            device_ip = stdout.strip()
+            self.logger.debug(f"Device IP: {device_ip}")
+            
+            # Test camera endpoints from external perspective
+            test_endpoints = WATCHDOG_CONFIG.get('test_endpoints', ['/api/security/status', '/api/security/live-feed'])
+            camera_endpoints = [
+                f"http://{device_ip}:{WATCHDOG_CONFIG['app_port']}{endpoint}"
+                for endpoint in test_endpoints
+            ]
+            
+            timeout = WATCHDOG_CONFIG.get('test_timeout', WATCHDOG_CONFIG['network_timeout'])
+            
+            for endpoint in camera_endpoints:
+                try:
+                    self.logger.debug(f"Testing camera endpoint: {endpoint}")
+                    response = requests.get(endpoint, timeout=timeout)
+                    if response.status_code == 200:
+                        self.logger.debug(f"Camera endpoint {endpoint} responded successfully")
+                        return True
+                except requests.exceptions.RequestException as e:
+                    self.logger.debug(f"Camera endpoint {endpoint} failed: {e}")
+                    continue
+            
+            self.logger.warning("Camera connectivity check failed - external access not working")
+            return False
+            
+        except Exception as e:
+            self.logger.error(f"Error checking camera connectivity: {e}")
+            return False
     
     def check_bluetooth_status(self):
         """Check Bluetooth status"""
@@ -268,6 +373,72 @@ class HomePiWatchdog:
                 
         except Exception as e:
             self.logger.error(f"Error fixing network: {e}")
+            return False
+    
+    def fix_camera_connectivity(self):
+        """Fix camera connectivity issues"""
+        if not WATCHDOG_CONFIG.get('enable_camera_fix', True):
+            return False
+            
+        self.logger.info("Attempting to fix camera connectivity...")
+        
+        try:
+            fix_methods = WATCHDOG_CONFIG.get('fix_methods', ['service_restart', 'interface_restart', 'firewall_check'])
+            
+            # Method 1: Service restart
+            if 'service_restart' in fix_methods:
+                self.logger.info("Restarting homepi service to fix camera connectivity...")
+                if self.restart_service():
+                    # Wait for service to fully start
+                    time.sleep(15)
+                    
+                    # Test camera connectivity again
+                    if self.check_camera_connectivity():
+                        self.logger.info("Camera connectivity restored after service restart")
+                        return True
+                    else:
+                        self.logger.warning("Camera connectivity still failing after service restart")
+            
+            # Method 2: Network interface restart
+            if 'interface_restart' in fix_methods:
+                self.logger.info("Trying network interface restart for camera connectivity...")
+                
+                # Get current network interface (WiFi or Ethernet)
+                success, stdout, stderr = self.run_command("ip route | grep default | awk '{print $5}' | head -1")
+                if success and stdout.strip():
+                    interface = stdout.strip()
+                    self.logger.info(f"Restarting network interface: {interface}")
+                    
+                    # Restart the interface
+                    self.run_command(f"ip link set {interface} down")
+                    time.sleep(2)
+                    self.run_command(f"ip link set {interface} up")
+                    time.sleep(10)
+                    
+                    # Test camera connectivity again
+                    if self.check_camera_connectivity():
+                        self.logger.info("Camera connectivity restored after interface restart")
+                        return True
+            
+            # Method 3: Firewall check
+            if 'firewall_check' in fix_methods:
+                self.logger.info("Checking for firewall issues...")
+                success, stdout, stderr = self.run_command("iptables -L INPUT -n | grep 5000")
+                if success and stdout.strip():
+                    self.logger.warning(f"Found iptables rules for port 5000: {stdout.strip()}")
+                    # Try to allow port 5000
+                    self.run_command("iptables -I INPUT -p tcp --dport 5000 -j ACCEPT")
+                    time.sleep(5)
+                    
+                    if self.check_camera_connectivity():
+                        self.logger.info("Camera connectivity restored after firewall fix")
+                        return True
+            
+            self.logger.warning("Camera connectivity fix attempt failed")
+            return False
+                
+        except Exception as e:
+            self.logger.error(f"Error fixing camera connectivity: {e}")
             return False
     
     def fix_bluetooth(self):
@@ -402,6 +573,7 @@ class HomePiWatchdog:
             'service': self.check_service_status(),
             'app': self.check_app_health(),
             'network': self.check_network_connectivity(),
+            'camera': self.check_camera_connectivity(),
             'bluetooth': self.check_bluetooth_status(),
             'resources': self.check_system_resources()
         }
@@ -417,6 +589,11 @@ class HomePiWatchdog:
         if not failed_checks.get('service', True):
             if self.restart_service():
                 fixes_applied.append('service_restart')
+        
+        # Fix camera connectivity issues (prioritize this as it's critical for Krono)
+        if not failed_checks.get('camera', True):
+            if self.fix_camera_connectivity():
+                fixes_applied.append('camera_fix')
         
         # Fix network issues
         if not failed_checks.get('network', True):
