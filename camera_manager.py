@@ -33,8 +33,14 @@ latest_frame = None
 # Shared frame buffer for streaming to multiple clients
 frame_buffer = None
 frame_buffer_lock = threading.Lock()
+frame_timestamp = None
 capture_thread = None
 capture_thread_running = False
+
+# Camera refresh management
+refresh_lock = threading.Lock()
+last_refresh_time = 0
+REFRESH_COOLDOWN_SECONDS = 30
 
 
 def load_config():
@@ -57,7 +63,7 @@ def load_config():
 
 def _continuous_capture():
     """Background thread that continuously captures frames for streaming"""
-    global frame_buffer, frame_buffer_lock, capture_thread_running, camera, camera_enabled
+    global frame_buffer, frame_buffer_lock, capture_thread_running, camera, camera_enabled, frame_timestamp
     
     print("📹 Starting continuous capture thread")
     frame_count = 0
@@ -89,10 +95,13 @@ def _continuous_capture():
             if camera and camera_enabled:
                 # Capture frame
                 frame = camera.capture_array()
+                capture_time = time.time()
                 
                 # Update shared buffer
                 with frame_buffer_lock:
                     frame_buffer = frame.copy()
+                    global frame_timestamp
+                    frame_timestamp = capture_time
                 
                 frame_count += 1
                 if frame_count == 1:
@@ -117,7 +126,7 @@ def _continuous_capture():
 
 def init_camera():
     """Initialize Picamera2 with configuration"""
-    global camera, camera_enabled, camera_config, capture_thread, capture_thread_running
+    global camera, camera_enabled, camera_config, capture_thread, capture_thread_running, frame_timestamp
     
     if not camera_available:
         print("Camera modules not available")
@@ -146,6 +155,8 @@ def init_camera():
         time.sleep(2)  # Allow camera to warm up
         
         camera_enabled = True
+        global frame_timestamp
+        frame_timestamp = None
         
         # Start continuous capture thread for streaming
         capture_thread_running = True
@@ -192,6 +203,58 @@ def get_frame_for_streaming():
     
     with frame_buffer_lock:
         return frame_buffer
+
+
+def get_frame_timestamp():
+    """Get timestamp of the most recently captured frame"""
+    return frame_timestamp
+
+
+def get_frame_age():
+    """Return age of the most recent frame in seconds"""
+    if frame_timestamp is None:
+        return None
+    return max(0.0, time.time() - frame_timestamp)
+
+
+def refresh_camera(force=False, reason=None):
+    """Restart camera capture without restarting entire service"""
+    global last_refresh_time
+    message = f"Reason: {reason}" if reason else ""
+    now = time.time()
+    with refresh_lock:
+        if not force and last_refresh_time and now - last_refresh_time < REFRESH_COOLDOWN_SECONDS:
+            elapsed = now - last_refresh_time
+            print(f"🔁 Camera refresh skipped (last refresh {elapsed:.1f}s ago). {message}")
+            return False
+        last_refresh_time = now
+    
+    print(f"🔄 Refreshing camera stream... {message}")
+    try:
+        stop_camera()
+        time.sleep(1)
+        success = init_camera()
+        if success:
+            print("✓ Camera stream refreshed")
+        else:
+            print("❌ Camera refresh failed during reinitialization")
+        return success
+    except Exception as e:
+        print(f"❌ Error refreshing camera: {e}")
+        return False
+
+
+def ensure_camera_fresh(max_stale_seconds=1.5, reason=None, force=False):
+    """Ensure camera frames are fresh, refreshing camera if frames are stale"""
+    if not camera_enabled:
+        return False
+    age = get_frame_age()
+    if age is None:
+        return False
+    if age > max_stale_seconds:
+        refresh_reason = reason or f"frames stale ({age:.2f}s old)"
+        return refresh_camera(force=force, reason=refresh_reason)
+    return False
 
 
 def get_single_frame_encoded():
@@ -336,7 +399,7 @@ def is_enabled():
 
 def stop_camera():
     """Stop camera and cleanup"""
-    global camera, camera_enabled, recording, capture_thread_running, capture_thread
+    global camera, camera_enabled, recording, capture_thread_running, capture_thread, frame_timestamp
     
     # Stop capture thread
     if capture_thread_running:
@@ -352,19 +415,27 @@ def stop_camera():
             camera.stop()
             camera.close()
             camera_enabled = False
+            frame_timestamp = None
             print("Camera stopped")
         except Exception as e:
             print(f"Error stopping camera: {e}")
+        finally:
+            camera = None
 
 
 def get_camera_status():
     """Get current camera status"""
+    age = get_frame_age()
+    timestamp = frame_timestamp
+    last_frame_iso = datetime.fromtimestamp(timestamp).isoformat() if timestamp else None
     return {
         'enabled': camera_enabled,
         'recording': recording,
         'recording_file': current_recording_file,
         'resolution': camera_config.get('resolution', [1920, 1080]),
-        'fps': camera_config.get('fps', 30)
+        'fps': camera_config.get('fps', 30),
+        'frame_age': age,
+        'last_frame_time': last_frame_iso
     }
 
 

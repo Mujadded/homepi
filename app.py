@@ -257,6 +257,18 @@ def get_system_health():
         health['room_humidity'] = None
         health['sensor_available'] = False
     
+    # Camera health information
+    try:
+        camera_status = camera_manager.get_camera_status()
+        health['camera_enabled'] = camera_status.get('enabled')
+        health['camera_frame_age'] = camera_status.get('frame_age')
+        health['camera_last_frame_time'] = camera_status.get('last_frame_time')
+    except Exception as e:
+        health['camera_enabled'] = False
+        health['camera_frame_age'] = None
+        health['camera_last_frame_time'] = None
+        system_warnings.append(f'Camera status unavailable: {e}')
+    
     # Check for warnings
     if health['cpu_percent'] > 80:
         system_warnings.append('High CPU usage')
@@ -340,21 +352,29 @@ def schedule_daily_backup():
 
 
 def schedule_health_check():
-    """Schedule health check every 5 minutes"""
+    """Schedule health check every minute"""
     def health_check():
         health = get_system_health()
         if not health['bluetooth_connected']:
             print("Bluetooth disconnected, attempting reconnect...")
             auto_reconnect_bluetooth()
+        
+        camera_age = health.get('camera_frame_age')
+        if camera_age is not None and camera_age > 1.5:
+            try:
+                print(f"Camera frame age {camera_age:.2f}s detected, refreshing camera...")
+                camera_manager.refresh_camera(reason=f"health_check stale {camera_age:.2f}s")
+            except Exception as e:
+                print(f"Camera refresh attempt failed during health check: {e}")
     
     scheduler.add_job(
         health_check,
         trigger='interval',
-        minutes=5,
+        minutes=1,
         id='health_check',
         replace_existing=True
     )
-    print("Health check scheduled every 5 minutes")
+    print("Health check scheduled every minute")
 
 
 # API Routes
@@ -950,6 +970,25 @@ def get_snapshot():
         return jsonify({'error': str(e)}), 500
 
 
+@app.route('/api/security/camera/refresh', methods=['POST'])
+def refresh_camera_stream():
+    """Manually refresh camera stream without restarting service"""
+    if not SECURITY_AVAILABLE:
+        return jsonify({'error': 'Security system not available'}), 503
+    
+    try:
+        payload = request.get_json(silent=True) or {}
+        force = payload.get('force', False)
+        reason = payload.get('reason', 'manual API request')
+        refreshed = camera_manager.refresh_camera(force=force, reason=reason)
+        if refreshed:
+            return jsonify({'success': True, 'message': 'Camera stream refreshed'})
+        else:
+            return jsonify({'success': False, 'message': 'Camera refresh skipped (recently refreshed)'})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
 @app.route('/api/security/live-feed')
 def live_feed():
     """MJPEG live camera stream (supports multiple concurrent clients)"""
@@ -975,6 +1014,10 @@ def live_feed():
             while True:
                 # Get current frame from shared buffer (non-blocking)
                 frame = camera_manager.get_frame_for_streaming()
+                frame_age = camera_manager.get_frame_age()
+                if frame_age is not None and frame_age > 1.5:
+                    camera_manager.ensure_camera_fresh(max_stale_seconds=1.5, reason=f"live_feed client {client_id}")
+                    frame = camera_manager.get_frame_for_streaming()
                 
                 if frame is not None:
                     # Convert RGB to BGR for OpenCV

@@ -28,7 +28,18 @@ The original issue was that Krono screen monitor couldn't connect to HomePi came
 - **Firewall Check**: Checks and fixes iptables rules blocking port 5000
 - Configurable fix methods via `watchdog_config.json`
 
-### 3. Enhanced Configuration
+### 3. Automatic Camera Refresh (No Service Restart Required)
+- Camera manager tracks frame timestamps and exposes frame age
+- `camera_manager.refresh_camera()` restarts Picamera2 in-process (60s cooldown by default)
+- App-level health monitor auto-refreshes if frames are older than 1.5 seconds
+- Live-feed endpoint self-heals by triggering a refresh when it sees stale frames
+
+### 4. Manual Camera Refresh Endpoint
+- `POST /api/security/camera/refresh` refreshes the stream without restarting HomePi
+- Accepts optional JSON payload: `{ "force": true, "reason": "manual" }`
+- Respects refresh cooldown unless `force` is specified
+
+### 5. Enhanced Configuration
 Added camera section to `watchdog_config.json`:
 ```json
 {
@@ -48,7 +59,7 @@ Added camera section to `watchdog_config.json`:
 }
 ```
 
-### 4. Integration with Health Checks
+### 6. Integration with Health Checks
 - Added `camera` check to `perform_health_check()`
 - Prioritizes camera fixes in `attempt_fixes()` (critical for Krono)
 - Logs detailed debug information for troubleshooting
@@ -70,19 +81,30 @@ Added camera section to `watchdog_config.json`:
    - Manual test script for camera connectivity
    - Can be run to verify functionality
 
+4. **`app.py`**
+   - Health check now runs every minute and refreshes the camera when frames are stale
+   - Added `/api/security/camera/refresh` endpoint for manual refresh requests
+
+5. **`camera_manager.py`**
+   - Tracks frame timestamps and exposes frame age in status responses
+    - Provides `refresh_camera()` and `ensure_camera_fresh()` helpers with cooldown handling
+    - Resets Picamera2 in-process to clear lag without restarting the whole service
+
 ## How It Works
 
 ### Detection
 1. Watchdog runs every 30 seconds (configurable)
-2. Gets device IP: `hostname -I | awk '{print $1}'`
-3. Tests external endpoints: `http://{device_ip}:5000/api/security/status`
-4. If external access fails → triggers fix attempts
+2. Camera manager updates frame timestamps on every capture
+3. App health monitor (every minute) checks frame age and camera availability
+4. Live-feed generator double-checks frame freshness per client session
+5. If external access fails or frames become stale → trigger refresh/fix attempts
 
 ### Fix Process
-1. **Service Restart**: `systemctl restart homepi.service`
-2. **Interface Restart**: `ip link set {interface} down/up`
-3. **Firewall Check**: `iptables -I INPUT -p tcp --dport 5000 -j ACCEPT`
-4. Re-tests connectivity after each fix attempt
+1. **Camera Refresh**: `camera_manager.refresh_camera()` (stop & reinit Picamera2 in-place)
+2. **Service Restart**: `systemctl restart homepi.service` (fallback if refresh skipped/fails)
+3. **Interface Restart**: `ip link set {interface} down/up`
+4. **Firewall Check**: `iptables -I INPUT -p tcp --dport 5000 -j ACCEPT`
+5. Re-tests connectivity after each fix attempt
 
 ### Logging
 - Debug logs show device IP and endpoint tests
@@ -95,6 +117,13 @@ Run the test script manually:
 ```bash
 cd /home/mujadded/homepi
 python3 test_camera_connectivity.py
+```
+
+Trigger a manual camera refresh via API:
+```bash
+curl -X POST http://192.168.0.26:5000/api/security/camera/refresh \
+     -H 'Content-Type: application/json' \
+     -d '{"reason": "manual refresh test"}'
 ```
 
 ## Benefits
