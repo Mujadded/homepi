@@ -43,6 +43,7 @@
       "/api/security/live-feed"
     ],
     "fix_methods": [
+      "api_refresh",
       "service_restart",
       "interface_restart",
       "firewall_check"

@@ -383,7 +383,28 @@ class HomePiWatchdog:
         self.logger.info("Attempting to fix camera connectivity...")
         
         try:
-            fix_methods = WATCHDOG_CONFIG.get('fix_methods', ['service_restart', 'interface_restart', 'firewall_check'])
+            fix_methods = list(WATCHDOG_CONFIG.get('fix_methods', ['service_restart', 'interface_restart', 'firewall_check']))
+            refresh_url = f"{WATCHDOG_CONFIG['app_url']}/api/security/camera/refresh"
+            if 'api_refresh' not in fix_methods:
+                fix_methods.insert(0, 'api_refresh')
+            
+            # Method 0: Camera refresh API (lightweight)
+            if 'api_refresh' in fix_methods:
+                try:
+                    self.logger.info(f"Calling camera refresh API: {refresh_url}")
+                    response = requests.post(refresh_url, json={'reason': 'watchdog auto refresh'}, timeout=WATCHDOG_CONFIG['network_timeout'])
+                    if response.status_code == 200 and response.json().get('success'):
+                        self.logger.info("Camera refresh API reported success")
+                        time.sleep(3)
+                        if self.check_camera_connectivity():
+                            self.logger.info("Camera connectivity restored after refresh API call")
+                            return True
+                        else:
+                            self.logger.warning("Camera refresh API succeeded but connectivity still failing")
+                    else:
+                        self.logger.warning(f"Camera refresh API returned {response.status_code}: {response.text}")
+                except Exception as api_err:
+                    self.logger.warning(f"Camera refresh API call failed: {api_err}")
             
             # Method 1: Service restart
             if 'service_restart' in fix_methods:

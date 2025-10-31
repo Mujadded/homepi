@@ -221,27 +221,27 @@ def refresh_camera(force=False, reason=None):
     """Restart camera capture without restarting entire service"""
     global last_refresh_time
     message = f"Reason: {reason}" if reason else ""
-    now = time.time()
     with refresh_lock:
+        now = time.time()
         if not force and last_refresh_time and now - last_refresh_time < REFRESH_COOLDOWN_SECONDS:
             elapsed = now - last_refresh_time
             print(f"🔁 Camera refresh skipped (last refresh {elapsed:.1f}s ago). {message}")
             return False
-        last_refresh_time = now
-    
-    print(f"🔄 Refreshing camera stream... {message}")
-    try:
-        stop_camera()
-        time.sleep(1)
-        success = init_camera()
-        if success:
-            print("✓ Camera stream refreshed")
-        else:
-            print("❌ Camera refresh failed during reinitialization")
-        return success
-    except Exception as e:
-        print(f"❌ Error refreshing camera: {e}")
-        return False
+        
+        print(f"🔄 Refreshing camera stream... {message}")
+        try:
+            stop_camera()
+            time.sleep(1)
+            success = init_camera()
+            if success:
+                last_refresh_time = time.time()
+                print("✓ Camera stream refreshed")
+            else:
+                print("❌ Camera refresh failed during reinitialization")
+            return success
+        except Exception as e:
+            print(f"❌ Error refreshing camera: {e}")
+            return False
 
 
 def ensure_camera_fresh(max_stale_seconds=1.5, reason=None, force=False):
@@ -399,13 +399,18 @@ def is_enabled():
 
 def stop_camera():
     """Stop camera and cleanup"""
-    global camera, camera_enabled, recording, capture_thread_running, capture_thread, frame_timestamp
+    global camera, camera_enabled, recording, capture_thread_running, capture_thread, frame_timestamp, frame_buffer
     
     # Stop capture thread
     if capture_thread_running:
         capture_thread_running = False
         if capture_thread:
             capture_thread.join(timeout=2)
+    
+    # Clear frame buffer
+    with frame_buffer_lock:
+        frame_buffer = None
+        frame_timestamp = None
     
     if recording:
         stop_recording()
@@ -415,7 +420,6 @@ def stop_camera():
             camera.stop()
             camera.close()
             camera_enabled = False
-            frame_timestamp = None
             print("Camera stopped")
         except Exception as e:
             print(f"Error stopping camera: {e}")

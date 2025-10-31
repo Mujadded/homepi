@@ -33,6 +33,7 @@ The original issue was that Krono screen monitor couldn't connect to HomePi came
 - `camera_manager.refresh_camera()` restarts Picamera2 in-process (60s cooldown by default)
 - App-level health monitor auto-refreshes if frames are older than 1.5 seconds
 - Live-feed endpoint self-heals by triggering a refresh when it sees stale frames
+- Watchdog prefers the refresh API before falling back to service/network restarts
 
 ### 4. Manual Camera Refresh Endpoint
 - `POST /api/security/camera/refresh` refreshes the stream without restarting HomePi
@@ -130,9 +131,10 @@ curl -X POST http://192.168.0.26:5000/api/security/camera/refresh \
 
 1. **Automatic Recovery**: No manual intervention needed when camera connectivity fails
 2. **Krono Compatibility**: Ensures Krono can always access the camera feed
-3. **Network Resilience**: Handles WiFi/Ethernet connectivity issues
-4. **Firewall Protection**: Automatically fixes port blocking issues
-5. **Configurable**: Easy to adjust test endpoints and fix methods
+3. **Stream Stability**: Detects stale buffers and refreshes the camera without restarting HomePi
+4. **Network Resilience**: Handles WiFi/Ethernet connectivity issues
+5. **Firewall Protection**: Automatically fixes port blocking issues
+6. **Configurable**: Easy to adjust test endpoints, fix methods, and refresh thresholds
 
 ## Configuration Options
 
