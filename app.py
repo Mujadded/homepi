@@ -27,6 +27,7 @@ except ImportError as e:
 try:
     import security_manager
     import car_recognizer
+    import camera_manager
     SECURITY_AVAILABLE = True
 except ImportError as e:
     print(f"⚠ Security modules not available: {e}")
