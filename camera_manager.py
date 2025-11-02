@@ -91,27 +91,55 @@ def _continuous_capture():
         traceback.print_exc()
         return
     
+    consecutive_failures = 0
+    max_consecutive_failures = 5
+    
     while capture_thread_running:
         try:
             if camera and camera_enabled:
-                # Capture frame
-                frame = camera.capture_array()
-                capture_time = time.time()
-                
-                # Update shared buffer
-                with frame_buffer_lock:
-                    frame_buffer = frame.copy()
-                    global frame_timestamp
-                    frame_timestamp = capture_time
-                
-                frame_count += 1
-                if frame_count == 1:
-                    print(f"✓ First frame captured: {frame.shape}")
-                if frame_count % 300 == 0:  # Log every 300 frames (~10 seconds)
-                    print(f"📹 Captured {frame_count} frames")
-                
-                # Small delay to control frame rate (~30 FPS)
-                time.sleep(0.033)
+                # Capture frame with timeout detection
+                capture_start = time.time()
+                try:
+                    frame = camera.capture_array()
+                    capture_duration = time.time() - capture_start
+                    
+                    # If capture took too long (> 100ms), something is wrong
+                    if capture_duration > 0.1:
+                        print(f"⚠️ Slow capture detected: {capture_duration:.3f}s (expected <0.1s)")
+                        consecutive_failures += 1
+                        if consecutive_failures >= max_consecutive_failures:
+                            print(f"❌ Multiple slow captures ({consecutive_failures}), refreshing camera...")
+                            consecutive_failures = 0
+                            # Don't refresh here - let the health check handle it
+                            time.sleep(0.1)
+                            continue
+                    else:
+                        consecutive_failures = 0  # Reset on successful fast capture
+                    
+                    capture_time = time.time()
+                    
+                    # Update shared buffer
+                    with frame_buffer_lock:
+                        frame_buffer = frame.copy()
+                        global frame_timestamp
+                        frame_timestamp = capture_time
+                    
+                    frame_count += 1
+                    if frame_count == 1:
+                        print(f"✓ First frame captured: {frame.shape}")
+                    if frame_count % 300 == 0:  # Log every 300 frames (~10 seconds)
+                        print(f"📹 Captured {frame_count} frames")
+                    
+                    # Calculate sleep time to maintain 30 FPS, accounting for capture time
+                    sleep_time = max(0.001, 0.033 - capture_duration)
+                    time.sleep(sleep_time)
+                except Exception as capture_error:
+                    print(f"❌ Capture error: {capture_error}")
+                    consecutive_failures += 1
+                    if consecutive_failures >= max_consecutive_failures:
+                        print(f"❌ Multiple capture failures ({consecutive_failures}), camera may need refresh")
+                        consecutive_failures = 0
+                    time.sleep(0.1)
             else:
                 print("⚠ Camera became unavailable")
                 time.sleep(0.1)
@@ -120,6 +148,7 @@ def _continuous_capture():
             print(f"❌ Error in continuous capture: {e}")
             import traceback
             traceback.print_exc()
+            consecutive_failures += 1
             time.sleep(0.1)
     
     print("📹 Continuous capture thread stopped")

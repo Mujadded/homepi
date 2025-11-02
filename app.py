@@ -377,11 +377,33 @@ def schedule_health_check():
                 except Exception as e:
                     print(f"Camera refresh attempt failed during health check: {e}")
     
+    def camera_freshness_monitor():
+        """Monitor camera frame freshness every 10 seconds and refresh if stale"""
+        try:
+            age = camera_manager.get_frame_age()
+            if age is None:
+                print("🔍 Freshness monitor: No frames detected, camera may be stuck")
+                camera_manager.refresh_camera(force=True, reason="freshness_monitor no frames")
+            elif age > 0.4:  # Stricter threshold - 400ms
+                print(f"🔍 Freshness monitor: Frame age {age:.2f}s exceeds threshold (0.4s), refreshing...")
+                camera_manager.refresh_camera(reason=f"freshness_monitor stale {age:.2f}s")
+        except Exception as e:
+            print(f"Freshness monitor error: {e}")
+    
     scheduler.add_job(
         health_check,
         trigger='interval',
         minutes=1,
         id='health_check',
+        replace_existing=True
+    )
+    
+    # Add camera freshness monitor that runs every 10 seconds
+    scheduler.add_job(
+        camera_freshness_monitor,
+        trigger='interval',
+        seconds=10,
+        id='camera_freshness_monitor',
         replace_existing=True
     )
     
@@ -402,6 +424,7 @@ def schedule_health_check():
         replace_existing=True
     )
     print("Health check scheduled every minute")
+    print("Camera freshness monitor scheduled every 10 seconds")
     print("Periodic camera refresh scheduled every 5 minutes")
 
 
