@@ -731,6 +731,107 @@ def health_status():
     return jsonify(get_system_health())
 
 
+@app.route('/api/watchdog/status', methods=['GET'])
+def watchdog_status():
+    """
+    Get watchdog service status and health check results
+    This endpoint allows external systems like Jetson to monitor HomePi availability
+    """
+    try:
+        import re
+        
+        status = {
+            'homepi_online': True,
+            'timestamp': datetime.now().isoformat(),
+            'service_status': {},
+            'watchdog_status': {},
+            'health_checks': {}
+        }
+        
+        # Check if homepi.service is running
+        try:
+            result = subprocess.run(
+                ['systemctl', 'is-active', 'homepi.service'],
+                capture_output=True,
+                text=True,
+                timeout=5
+            )
+            status['service_status']['homepi_service'] = {
+                'active': result.returncode == 0 and result.stdout.strip() == 'active',
+                'status': result.stdout.strip() if result.returncode == 0 else 'inactive'
+            }
+        except Exception as e:
+            status['service_status']['homepi_service'] = {
+                'active': False,
+                'status': 'unknown',
+                'error': str(e)
+            }
+        
+        # Check if homepi-watchdog.service is running
+        try:
+            result = subprocess.run(
+                ['systemctl', 'is-active', 'homepi-watchdog.service'],
+                capture_output=True,
+                text=True,
+                timeout=5
+            )
+            status['watchdog_status']['watchdog_service'] = {
+                'active': result.returncode == 0 and result.stdout.strip() == 'active',
+                'status': result.stdout.strip() if result.returncode == 0 else 'inactive'
+            }
+        except Exception as e:
+            status['watchdog_status']['watchdog_service'] = {
+                'active': False,
+                'status': 'unknown',
+                'error': str(e)
+            }
+        
+        # Get recent health check results from watchdog log if available
+        try:
+            log_path = '/var/log/homepi-watchdog.log'
+            if os.path.exists(log_path):
+                # Read last 100 lines looking for health check results
+                with open(log_path, 'r') as f:
+                    lines = f.readlines()
+                    # Look for the most recent health check entry
+                    for line in reversed(lines[-100:]):
+                        if 'Health check results:' in line:
+                            # Parse the health check results
+                            match = re.search(r"\{'service': \w+, 'app': \w+, 'network': \w+, 'camera': \w+, 'bluetooth': \w+, 'resources': \w+\}", line)
+                            if match:
+                                checks_str = match.group(0)
+                                # Convert Python dict string to actual dict
+                                checks_str = checks_str.replace("'", '"').replace('True', 'true').replace('False', 'false')
+                                status['health_checks'] = json.loads(checks_str)
+                            break
+        except Exception as e:
+            status['health_checks'] = {'error': f'Could not parse log: {str(e)}'}
+        
+        # Add current system health check
+        try:
+            health = get_system_health()
+            status['health_checks']['current'] = {
+                'camera_enabled': health.get('camera_enabled'),
+                'camera_frame_age': health.get('camera_frame_age'),
+                'bluetooth_connected': health.get('bluetooth_connected'),
+                'cpu_percent': health.get('cpu_percent'),
+                'memory_percent': health.get('memory_percent'),
+                'disk_percent': health.get('disk_percent'),
+                'warnings': health.get('warnings', [])
+            }
+        except Exception as e:
+            status['health_checks']['current'] = {'error': str(e)}
+        
+        return jsonify(status)
+        
+    except Exception as e:
+        return jsonify({
+            'homepi_online': False,
+            'timestamp': datetime.now().isoformat(),
+            'error': str(e)
+        }), 500
+
+
 @app.route('/api/backups', methods=['GET'])
 def list_backups():
     """List all available backups"""
