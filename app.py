@@ -361,12 +361,21 @@ def schedule_health_check():
             auto_reconnect_bluetooth()
         
         camera_age = health.get('camera_frame_age')
-        if camera_age is not None and camera_age > 1.5:
-            try:
-                print(f"Camera frame age {camera_age:.2f}s detected, refreshing camera...")
-                camera_manager.refresh_camera(reason=f"health_check stale {camera_age:.2f}s")
-            except Exception as e:
-                print(f"Camera refresh attempt failed during health check: {e}")
+        if camera_age is not None:
+            # Use stricter threshold (0.5s) for automatic refresh
+            if camera_age > 0.5:
+                try:
+                    print(f"Camera frame age {camera_age:.2f}s detected (threshold: 0.5s), refreshing camera...")
+                    camera_manager.refresh_camera(reason=f"health_check stale {camera_age:.2f}s")
+                except Exception as e:
+                    print(f"Camera refresh attempt failed during health check: {e}")
+            # Also check if age is None (camera stuck)
+            elif camera_age is None:
+                try:
+                    print("Camera frame age is None (camera may be stuck), refreshing camera...")
+                    camera_manager.refresh_camera(force=True, reason="health_check camera stuck")
+                except Exception as e:
+                    print(f"Camera refresh attempt failed during health check: {e}")
     
     scheduler.add_job(
         health_check,
@@ -375,7 +384,25 @@ def schedule_health_check():
         id='health_check',
         replace_existing=True
     )
+    
+    # Add periodic camera refresh every 5 minutes as preventive maintenance
+    def periodic_camera_refresh():
+        """Periodic camera refresh to prevent glitching buildup"""
+        try:
+            print("🔄 Periodic camera refresh (preventive maintenance)...")
+            camera_manager.refresh_camera(reason="periodic maintenance refresh")
+        except Exception as e:
+            print(f"Periodic camera refresh failed: {e}")
+    
+    scheduler.add_job(
+        periodic_camera_refresh,
+        trigger='interval',
+        minutes=5,
+        id='periodic_camera_refresh',
+        replace_existing=True
+    )
     print("Health check scheduled every minute")
+    print("Periodic camera refresh scheduled every 5 minutes")
 
 
 # API Routes
@@ -1074,21 +1101,45 @@ def get_snapshot():
 
 @app.route('/api/security/camera/refresh', methods=['POST'])
 def refresh_camera_stream():
-    """Manually refresh camera stream without restarting service"""
+    """Manually refresh camera stream without restarting service
+    
+    Accepts optional JSON payload:
+    {
+        "force": true,      # Force refresh even if recently refreshed (default: false)
+        "reason": "manual"   # Reason for refresh (default: "manual API request")
+    }
+    """
     if not SECURITY_AVAILABLE:
         return jsonify({'error': 'Security system not available'}), 503
     
     try:
         payload = request.get_json(silent=True) or {}
-        force = payload.get('force', False)
+        force = payload.get('force', True)  # Default to force=True for manual API calls
         reason = payload.get('reason', 'manual API request')
+        
+        print(f"📹 Manual camera refresh requested (force={force}, reason={reason})")
         refreshed = camera_manager.refresh_camera(force=force, reason=reason)
+        
         if refreshed:
-            return jsonify({'success': True, 'message': 'Camera stream refreshed'})
+            return jsonify({
+                'success': True, 
+                'message': 'Camera stream refreshed',
+                'force': force,
+                'reason': reason
+            })
         else:
-            return jsonify({'success': False, 'message': 'Camera refresh skipped (recently refreshed)'})
+            return jsonify({
+                'success': False, 
+                'message': 'Camera refresh skipped (recently refreshed or failed)',
+                'force': force,
+                'reason': reason
+            })
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        import traceback
+        return jsonify({
+            'error': str(e),
+            'traceback': traceback.format_exc()
+        }), 500
 
 
 @app.route('/api/security/live-feed')
@@ -1117,8 +1168,13 @@ def live_feed():
                 # Get current frame from shared buffer (non-blocking)
                 frame = camera_manager.get_frame_for_streaming()
                 frame_age = camera_manager.get_frame_age()
-                if frame_age is not None and frame_age > 1.5:
-                    camera_manager.ensure_camera_fresh(max_stale_seconds=1.5, reason=f"live_feed client {client_id}")
+                # Use stricter threshold (0.5s) for live feed - catch glitching earlier
+                if frame_age is not None and frame_age > 0.5:
+                    camera_manager.ensure_camera_fresh(max_stale_seconds=0.5, reason=f"live_feed client {client_id} stale {frame_age:.2f}s")
+                    frame = camera_manager.get_frame_for_streaming()
+                elif frame_age is None:
+                    # Camera stuck - no frames
+                    camera_manager.ensure_camera_fresh(force=True, reason=f"live_feed client {client_id} camera stuck")
                     frame = camera_manager.get_frame_for_streaming()
                 
                 if frame is not None:
@@ -1134,7 +1190,7 @@ def live_feed():
                     
                     frame_count += 1
                     
-                    if frame_count % 90 == 0:  # Log every 90 frames (~3 seconds)
+                    if frame_count % 900 == 0:  # Log every 900 frames (~30 seconds)
                         print(f"📹 Client {client_id}: {frame_count} frames", file=sys.stderr, flush=True)
                 else:
                     # No frame available yet, wait a bit

@@ -40,7 +40,8 @@ capture_thread_running = False
 # Camera refresh management
 refresh_lock = threading.Lock()
 last_refresh_time = 0
-REFRESH_COOLDOWN_SECONDS = 30
+REFRESH_COOLDOWN_SECONDS = 10  # Reduced from 30 to allow more frequent refreshes
+STALE_FRAME_THRESHOLD = 0.5  # Refresh if frames are older than 0.5 seconds
 
 
 def load_config():
@@ -219,19 +220,31 @@ def get_frame_age():
 
 def refresh_camera(force=False, reason=None):
     """Restart camera capture without restarting entire service"""
-    global last_refresh_time
+    global last_refresh_time, frame_buffer, frame_timestamp
     message = f"Reason: {reason}" if reason else ""
     with refresh_lock:
         now = time.time()
-        if not force and last_refresh_time and now - last_refresh_time < REFRESH_COOLDOWN_SECONDS:
+        # Allow refresh if forced, or if cooldown has passed, or if it's been > 5 seconds (emergency)
+        emergency = last_refresh_time and (now - last_refresh_time) > 5
+        if not force and not emergency and last_refresh_time and now - last_refresh_time < REFRESH_COOLDOWN_SECONDS:
             elapsed = now - last_refresh_time
             print(f"🔁 Camera refresh skipped (last refresh {elapsed:.1f}s ago). {message}")
             return False
         
         print(f"🔄 Refreshing camera stream... {message}")
         try:
+            # Stop camera completely
             stop_camera()
-            time.sleep(1)
+            
+            # Additional cleanup - ensure buffers are cleared
+            with frame_buffer_lock:
+                frame_buffer = None
+                frame_timestamp = None
+            
+            # Wait longer to ensure camera hardware is reset
+            time.sleep(2)
+            
+            # Reinitialize camera
             success = init_camera()
             if success:
                 last_refresh_time = time.time()
@@ -241,18 +254,26 @@ def refresh_camera(force=False, reason=None):
             return success
         except Exception as e:
             print(f"❌ Error refreshing camera: {e}")
+            import traceback
+            traceback.print_exc()
             return False
 
 
-def ensure_camera_fresh(max_stale_seconds=1.5, reason=None, force=False):
+def ensure_camera_fresh(max_stale_seconds=None, reason=None, force=False):
     """Ensure camera frames are fresh, refreshing camera if frames are stale"""
     if not camera_enabled:
         return False
+    if max_stale_seconds is None:
+        max_stale_seconds = STALE_FRAME_THRESHOLD
+    
     age = get_frame_age()
     if age is None:
-        return False
+        # No frames captured yet - might be stuck
+        print("⚠️ No frame timestamp available, camera may be stuck")
+        return refresh_camera(force=force, reason=reason or "no frames detected")
+    
     if age > max_stale_seconds:
-        refresh_reason = reason or f"frames stale ({age:.2f}s old)"
+        refresh_reason = reason or f"frames stale ({age:.2f}s old, threshold {max_stale_seconds}s)"
         return refresh_camera(force=force, reason=refresh_reason)
     return False
 
