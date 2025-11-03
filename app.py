@@ -380,8 +380,17 @@ def schedule_health_check():
     def camera_freshness_monitor():
         """Monitor camera frame freshness every 10 seconds and refresh if stale"""
         try:
+            # Only monitor if camera is enabled and has captured at least one frame
+            if not camera_manager.is_enabled():
+                return
+            
+            # Check if we've captured a frame yet
+            if not camera_manager.first_frame_captured:
+                return  # Don't refresh during initial startup
+            
             age = camera_manager.get_frame_age()
             if age is None:
+                # Only refresh if we've captured before
                 print("🔍 Freshness monitor: No frames detected, camera may be stuck")
                 camera_manager.refresh_camera(force=True, reason="freshness_monitor no frames")
             elif age > 0.4:  # Stricter threshold - 400ms
@@ -1091,7 +1100,6 @@ def get_snapshot():
     
     try:
         import cv2
-        import camera_manager
         from flask import Response
         
         print("📸 Snapshot requested")
@@ -1181,7 +1189,6 @@ def live_feed():
         """Generate MJPEG stream from shared camera buffer"""
         import cv2
         import time
-        import camera_manager
         import numpy as np
         
         frame_count = 0
@@ -1644,8 +1651,6 @@ def get_camera_frame():
         return jsonify({'error': 'Security system not available'}), 503
     
     try:
-        import camera_manager
-        
         frame_data = camera_manager.get_single_frame_encoded()
         
         if frame_data:

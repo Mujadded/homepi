@@ -36,12 +36,15 @@ frame_buffer_lock = threading.Lock()
 frame_timestamp = None
 capture_thread = None
 capture_thread_running = False
+first_frame_captured = False  # Track if we've successfully captured at least one frame
 
 # Camera refresh management
 refresh_lock = threading.Lock()
 last_refresh_time = 0
+camera_init_time = 0  # Track when camera was initialized
 REFRESH_COOLDOWN_SECONDS = 10  # Reduced from 30 to allow more frequent refreshes
 STALE_FRAME_THRESHOLD = 0.5  # Refresh if frames are older than 0.5 seconds
+STARTUP_GRACE_PERIOD = 15  # Don't refresh for 15 seconds after initialization
 
 
 def load_config():
@@ -64,10 +67,11 @@ def load_config():
 
 def _continuous_capture():
     """Background thread that continuously captures frames for streaming"""
-    global frame_buffer, frame_buffer_lock, capture_thread_running, camera, camera_enabled, frame_timestamp
+    global frame_buffer, frame_buffer_lock, capture_thread_running, camera, camera_enabled, frame_timestamp, first_frame_captured
     
     print("📹 Starting continuous capture thread")
     frame_count = 0
+    first_frame_captured = False  # Reset flag for this thread
     
     # Wait for camera to be ready
     for i in range(50):  # Wait up to 5 seconds
@@ -126,6 +130,7 @@ def _continuous_capture():
                     
                     frame_count += 1
                     if frame_count == 1:
+                        first_frame_captured = True  # Mark that we've successfully captured
                         print(f"✓ First frame captured: {frame.shape}")
                     if frame_count % 300 == 0:  # Log every 300 frames (~10 seconds)
                         print(f"📹 Captured {frame_count} frames")
@@ -156,7 +161,7 @@ def _continuous_capture():
 
 def init_camera():
     """Initialize Picamera2 with configuration"""
-    global camera, camera_enabled, camera_config, capture_thread, capture_thread_running, frame_timestamp
+    global camera, camera_enabled, camera_config, capture_thread, capture_thread_running, frame_timestamp, first_frame_captured, camera_init_time
     
     if not camera_available:
         print("Camera modules not available")
@@ -187,6 +192,8 @@ def init_camera():
         camera_enabled = True
         global frame_timestamp
         frame_timestamp = None
+        first_frame_captured = False  # Reset flag on init
+        camera_init_time = time.time()  # Track initialization time
         
         # Start continuous capture thread for streaming
         capture_thread_running = True
@@ -290,14 +297,25 @@ def refresh_camera(force=False, reason=None):
 
 def ensure_camera_fresh(max_stale_seconds=None, reason=None, force=False):
     """Ensure camera frames are fresh, refreshing camera if frames are stale"""
+    global first_frame_captured, camera_init_time
+    
     if not camera_enabled:
         return False
+    
+    # Don't refresh during startup grace period
+    if camera_init_time and (time.time() - camera_init_time) < STARTUP_GRACE_PERIOD:
+        return False
+    
+    # Don't refresh if we haven't captured a first frame yet (initialization period)
+    if not first_frame_captured:
+        return False
+    
     if max_stale_seconds is None:
         max_stale_seconds = STALE_FRAME_THRESHOLD
     
     age = get_frame_age()
     if age is None:
-        # No frames captured yet - might be stuck
+        # Only treat as stuck if we've captured before but now have no frames
         print("⚠️ No frame timestamp available, camera may be stuck")
         return refresh_camera(force=force, reason=reason or "no frames detected")
     
@@ -449,7 +467,7 @@ def is_enabled():
 
 def stop_camera():
     """Stop camera and cleanup"""
-    global camera, camera_enabled, recording, capture_thread_running, capture_thread, frame_timestamp, frame_buffer
+    global camera, camera_enabled, recording, capture_thread_running, capture_thread, frame_timestamp, frame_buffer, first_frame_captured
     
     # Stop capture thread
     if capture_thread_running:
@@ -461,6 +479,8 @@ def stop_camera():
     with frame_buffer_lock:
         frame_buffer = None
         frame_timestamp = None
+    
+    first_frame_captured = False  # Reset flag when stopping
     
     if recording:
         stop_recording()
